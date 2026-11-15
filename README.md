@@ -218,8 +218,9 @@ Add `--with-data` to the preview to select Application Support and container dat
 they are unselected by default. Confirmation must use the same selection. Preview
 tokens are tied to their caller, expire after 10 minutes and allow one attempt.
 MCP exposes `uninstall_preview {target, with_data}` and `uninstall_confirm {token}`.
-The person must approve the exact preview before confirmation. Claude receives the
-`anthropic/requiresUserInteraction` hint. For Codex, add:
+The person must approve the exact preview before confirmation. The server sends an
+advisory `anthropic/requiresUserInteraction` hint, but the real gate is the client's own
+per-tool approval: leave `uninstall_confirm` on "ask" in Claude Code. For Codex, add:
 
 ```toml
 [mcp_servers.updater.tools.uninstall_confirm]

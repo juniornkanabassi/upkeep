@@ -49,16 +49,21 @@ final class MCPServer: @unchecked Sendable {
   }
 
   private func receive(_ line: String) {
-    guard let request = try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any],
-      request["jsonrpc"] as? String == "2.0", let method = request["method"] as? String else {
-      send(["jsonrpc": "2.0", "id": NSNull(), "error": ["code": -32700, "message": "Invalid JSON-RPC request"]]); return
+    guard let request = try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any] else {
+      send(["jsonrpc": "2.0", "id": NSNull(), "error": ["code": -32700, "message": "Parse error"]]); return
+    }
+    guard request["jsonrpc"] as? String == "2.0", let method = request["method"] as? String else {
+      send(["jsonrpc": "2.0", "id": request["id"] ?? NSNull(), "error": ["code": -32600, "message": "Invalid request"]]); return
     }
     let params = request["params"] as? [String: Any] ?? [:]
     if method == "notifications/cancelled" {
       if let id = params["requestId"] { lock.withLock { tasks[Self.requestKey(id) ?? ""]?.cancel() } }
       return
     }
-    guard let id = request["id"], let requestID = Self.requestKey(id) else { return }
+    guard let id = request["id"] else { return }  // a notification: no reply
+    guard let requestID = Self.requestKey(id) else {
+      send(["jsonrpc": "2.0", "id": NSNull(), "error": ["code": -32600, "message": "Invalid request id"]]); return
+    }
     func result(_ value: [String: Any]) { send(["jsonrpc": "2.0", "id": id, "result": value]) }
     switch method {
     case "initialize":

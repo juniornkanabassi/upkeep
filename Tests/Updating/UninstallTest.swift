@@ -23,11 +23,15 @@ final class UninstallTest: XCTestCase {
   func testExactPathsPersonalDataAndByHostBoundary() throws {
     let (_, app, planner) = try fixture()
     let lib = planner.home.appendingPathComponent("Library")
-    for path in ["Caches/com.example.clean", "Application Support/com.example.clean", "Preferences/ByHost/com.example.clean.ABC.plist", "Preferences/ByHost/com.example.cleaner.ABC.plist", "Caches/unrelated"] { try file(lib.appendingPathComponent(path)) }
+    for path in ["Caches/com.example.clean", "Application Support/com.example.clean", "Preferences/ByHost/com.example.clean.ABC.plist", "Preferences/ByHost/com.example.cleaner.ABC.plist", "Preferences/ByHost/com.example.clean.helper.ABC.plist", "Caches/unrelated"] { try file(lib.appendingPathComponent(path)) }
     let plan = try planner.plan(app: app, withData: false)
     XCTAssertEqual(plan.items.count, 4)
     XCTAssertEqual(plan.items.first { $0.personalData }?.selected, false)
     XCTAssertFalse(plan.items.contains { $0.path.contains("cleaner") })
+    XCTAssertFalse(plan.items.contains { $0.path.contains("clean.helper") }, "another app's ByHost prefs")
+    // Helpers running from inside a bundle count as running (ps itself runs from /bin).
+    XCTAssertTrue(UninstallService.processRunsInside(URL(fileURLWithPath: "/bin")))
+    XCTAssertFalse(UninstallService.processRunsInside(planner.home.appendingPathComponent("Nothing.app")))
     XCTAssertTrue(try planner.plan(app: app, withData: true).items.allSatisfy(\.selected))
   }
 

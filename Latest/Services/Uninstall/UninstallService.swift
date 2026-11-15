@@ -38,7 +38,7 @@ final class UninstallService {
     if let resolvedHome { free(resolvedHome) }
     let service = UninstallService(planner: UninstallPlanner(home: home, systemLibrary: URL(fileURLWithPath: "/Library"),
       copies: { try AppStoreInstallGate.live.walk($0) },
-      isRunning: { !AppLifecycle.live.runningApps($0).isEmpty }),
+      isRunning: { !AppLifecycle.live.runningApps($0).isEmpty || UninstallService.processRunsInside($0) }),
       history: history, logURL: ControlPaths.dataRoot.appendingPathComponent("uninstall.log"),
       isUpdating: { updating.jobID(for: $0) != nil })
     service.beginExclusive = { url in
@@ -183,6 +183,23 @@ final class UninstallService {
     _ = try await InstallerCommand.run("/usr/bin/osascript", ["-e", "do shell script \"\(literal)\" with administrator privileges"], cancellable: false)
   }
 
+  /// Any process whose executable lives inside the bundle, including login items and helpers
+  /// registered from `Contents/Library` that never show as the app itself.
+  nonisolated static func processRunsInside(_ bundle: URL) -> Bool {
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: "/bin/ps")
+    process.arguments = ["-axo", "comm="]
+    let pipe = Pipe()
+    process.standardOutput = pipe
+    process.standardError = FileHandle.nullDevice
+    // Unknown counts as running: removal waits rather than binning a live helper.
+    guard (try? process.run()) != nil else { return true }
+    let output = String(decoding: pipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+    process.waitUntilExit()
+    let prefix = bundle.standardizedFileURL.path + "/"
+    return output.split(separator: "\n").contains { $0.hasPrefix(prefix) }
+  }
+
   static func administratorShell(_ items: [UninstallItem], target: URL, trash: URL) -> String {
     func q(_ value: String) -> String { "'" + value.replacingOccurrences(of: "'", with: "'\\''") + "'" }
     var commands = ["set -eu", "app_path=" + q(target.path), """
@@ -190,7 +207,7 @@ final class UninstallService {
         processes=$(/bin/ps -axo comm=) || return 1
         printf '%s\\n' "$processes" | (
           while IFS= read -r executable; do
-            case "$executable" in "$app_path"/Contents/MacOS/*) exit 1 ;; esac
+            case "$executable" in "$app_path"/*) exit 1 ;; esac
           done
         )
       }

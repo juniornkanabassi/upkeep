@@ -106,7 +106,11 @@ struct UninstallPlanner: Sendable {
         add(root.appendingPathComponent(leaf), root: root, kind: kind, personal: personal)
       }
       let byHost = library.appendingPathComponent("Preferences/ByHost")
-      for file in children(byHost) where file.lastPathComponent.hasPrefix(id + ".") && file.pathExtension == "plist" {
+      // <id>.<host UUID>.plist only: com.google.Chrome must not take com.google.Chrome.canary.<UUID>.plist.
+      for file in children(byHost) where file.pathExtension == "plist"
+        && file.lastPathComponent.hasPrefix(id + ".")
+        && !file.deletingPathExtension().lastPathComponent.dropFirst(id.count + 1).contains(".")
+      {
         add(file, root: byHost, kind: .prefs)
       }
       // Container names alone do not prove ownership, including group.<id> and UUID names.
