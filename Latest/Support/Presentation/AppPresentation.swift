@@ -200,13 +200,13 @@ extension App {
     case .driver:
       bundle.bundleIdentifier == "com.rogueamoeba.ARK.driver" && capability == .vendorTool
         ? "ARK installer" : bundle.parent ?? "No independent update source"
-    case .sparkle: "Sparkle"
+    case .sparkle: "Own updater"
     case .appStore: "App Store"
     case .homebrew: "Homebrew"
-    case .directDownload: "Developer download"
+    case .directDownload: "Maker's website"
     case .vendor:
       capability == .vendorTool ? "Developer's updater" : externalUpdaterName ?? "Developer"
-    case .none: "None found"
+    case .none: "Unknown"
     }
   }
 }

@@ -29,6 +29,14 @@ final class UninstallTest: XCTestCase {
     XCTAssertEqual(plan.items.first { $0.personalData }?.selected, false)
     XCTAssertFalse(plan.items.contains { $0.path.contains("cleaner") })
     XCTAssertFalse(plan.items.contains { $0.path.contains("clean.helper") }, "another app's ByHost prefs")
+    for path in ["WebKit/com.example.clean", "HTTPStorages/com.example.clean", "Cookies/com.example.clean.binarycookies"] {
+      try file(lib.appendingPathComponent(path))
+    }
+    let web = try planner.plan(app: app, withData: false).items.filter {
+      $0.path.contains("WebKit") || $0.path.contains("HTTPStorages") || $0.path.contains("Cookies")
+    }
+    XCTAssertEqual(web.count, 3)
+    XCTAssertTrue(web.allSatisfy { $0.personalData && !$0.selected }, "sign-ins stay unless asked")
     // Helpers running from inside a bundle count as running (ps itself runs from /bin).
     XCTAssertTrue(UninstallService.processRunsInside(URL(fileURLWithPath: "/bin")))
     XCTAssertFalse(UninstallService.processRunsInside(planner.home.appendingPathComponent("Nothing.app")))

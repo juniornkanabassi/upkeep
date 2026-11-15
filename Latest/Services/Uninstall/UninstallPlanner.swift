@@ -89,10 +89,11 @@ struct UninstallPlanner: Sendable {
       let keyed: [(String, String, UninstallItem.Kind, Bool)] = [
         ("Application Support", id, .data, true), ("Caches", id, .cache, false),
         ("Logs", id, .cache, false), ("Saved Application State", id + ".savedState", .cache, false),
-        ("WebKit", id, .cache, false),
-        ("WebKit/com.apple.WebKit.WebContent", id, .cache, false),
-        ("HTTPStorages", id, .cache, false), ("HTTPStorages", id + ".binarycookies", .cache, false),
-        ("Cookies", id + ".binarycookies", .cache, false), ("Application Scripts", id, .data, true),
+        // Website data and cookies can hold sign-ins: personal, unticked by default.
+        ("WebKit", id, .data, true),
+        ("WebKit/com.apple.WebKit.WebContent", id, .data, true),
+        ("HTTPStorages", id, .data, true), ("HTTPStorages", id + ".binarycookies", .data, true),
+        ("Cookies", id + ".binarycookies", .data, true), ("Application Scripts", id, .data, true),
         ("Autosave Information", id, .data, true), ("SyncedPreferences", id + ".plist", .prefs, false),
         ("Preferences", id, .prefs, false), ("Preferences", id + ".plist", .prefs, false),
         ("LaunchAgents", id + ".plist", .launchAgent, false),

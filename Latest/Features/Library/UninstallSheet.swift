@@ -150,7 +150,7 @@ final class UninstallSheetModel: ObservableObject {
       make("app", "The app", "Moves to the Bin") { $0.kind == .app },
       make(
         "cache", "Caches",
-        "Temporary files and website data the app can make again. Moves to the Bin"
+        "Temporary files the app can make again. Moves to the Bin"
       ) {
         $0.kind == .cache && !$0.personalData
       },
@@ -165,7 +165,7 @@ final class UninstallSheetModel: ObservableObject {
       },
       make(
         "personal", "Your settings and history",
-        "Documents, history and data the app saved. Kept unless you tick it"
+        "Sign-ins, website data, documents and history the app saved. Kept unless you tick it"
       ) {
         $0.personalData
       },
