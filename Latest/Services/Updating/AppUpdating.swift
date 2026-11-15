@@ -10,6 +10,8 @@ typealias UpdateStateFeed = (
 /// Feature-facing update boundary. State observation stays on the main actor;
 /// queue lookups and actions are safe from any caller.
 protocol AppUpdating: AnyObject, Sendable {
+  func reserveForUninstall(_ url: URL) -> Bool
+  func releaseAfterUninstall(_ url: URL)
   func isUpdating(_ app: App) -> Bool
   func update(_ app: App, isBulkUpdate: Bool)
   func cancel(_ app: App)
@@ -24,6 +26,8 @@ protocol AppUpdating: AnyObject, Sendable {
 }
 
 extension AppUpdating {
+  func reserveForUninstall(_ url: URL) -> Bool { false }
+  func releaseAfterUninstall(_ url: URL) {}
   func update(_ app: App) { update(app, isBulkUpdate: false) }
   func jobID(for identifier: App.Bundle.Identifier) -> String? { nil }
   func job(withID id: String) -> UpdateJob? { nil }
@@ -37,6 +41,8 @@ final class AppUpdateService: AppUpdating {
 
   init(queue: UpdateQueue) { self.queue = queue }
 
+  func reserveForUninstall(_ url: URL) -> Bool { queue.reserveForUninstall(url) }
+  func releaseAfterUninstall(_ url: URL) { queue.releaseAfterUninstall(url) }
   func isUpdating(_ app: App) -> Bool { queue.contains(app.identifier) }
   func jobID(for identifier: App.Bundle.Identifier) -> String? { queue.jobID(for: identifier) }
   func job(withID id: String) -> UpdateJob? { queue.job(withID: id) }

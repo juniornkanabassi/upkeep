@@ -169,6 +169,7 @@ extension AppEnvironment {
         updating: updating,
         history: .shared,
         setIgnored: { [coordinator] ignored, app in coordinator.appProvider.setIgnoredState(ignored, for: app) }))
+    service.uninstall = .live(updating: updating, history: .shared)
     do {
       let server = try ControlServer(path: ControlPaths.socket) { request in
         await service.handle(request)

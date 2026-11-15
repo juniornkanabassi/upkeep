@@ -35,6 +35,7 @@ enum UpdateOutcome: Codable, Equatable, Sendable {
   case needsQuit
   case failed(reason: String, logPath: String?)
   case handedOff
+  case uninstalled
 }
 
 extension App {

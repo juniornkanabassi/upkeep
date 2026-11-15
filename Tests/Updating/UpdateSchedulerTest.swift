@@ -7,6 +7,22 @@ import XCTest
 
 /// The scheduler is `UpdateQueue`: per-URL dedup, per-tool locks, outcomes read from disk.
 final class UpdateSchedulerTest: XCTestCase {
+  func testUninstallReservationExcludesUpdatesAndReleases() {
+    let queue = UpdateQueue()
+    let url = URL(fileURLWithPath: "/private/tmp/Reserved-" + UUID().uuidString + ".app")
+    XCTAssertTrue(queue.reserveForUninstall(url))
+    XCTAssertFalse(queue.reserveForUninstall(url))
+    let gate = AsyncStream<Void>.makeStream()
+    let blocked = GatedOperation(url: url, gate: gate.stream)
+    queue.submit(blocked)
+    XCTAssertTrue(blocked.isCancelled)
+    XCTAssertNil(queue.jobID(for: url))
+    queue.releaseAfterUninstall(url)
+    XCTAssertTrue(queue.reserveForUninstall(url))
+    queue.releaseAfterUninstall(url)
+    gate.continuation.finish()
+  }
+
   func testJobsSharingAToolLockNeverOverlap() async throws {
     let queue = UpdateQueue()
     let log = RunLog()

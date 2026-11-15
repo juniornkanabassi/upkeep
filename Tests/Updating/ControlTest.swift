@@ -663,7 +663,7 @@ final class ControlTest: XCTestCase {
     {
       $0["name"] as? String
     }
-    XCTAssertEqual(tools, ["list", "check", "update", "status", "history", "configure"])
+    XCTAssertEqual(tools, ["list", "check", "update", "status", "history", "configure", "uninstall_preview", "uninstall_confirm"])
     let definitions = (reply(2)?["result"] as? [String: Any])?["tools"] as? [[String: Any]]
     XCTAssertEqual((definitions?.first?["annotations"] as? [String: Bool])?["readOnlyHint"], true)
     XCTAssertNotNil(definitions?.first?["outputSchema"])

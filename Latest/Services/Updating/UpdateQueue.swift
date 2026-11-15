@@ -38,6 +38,20 @@ class UpdateQueue: OperationQueue, @unchecked Sendable {
 
   private let operationIndexLock = NSLock()
 
+  private var uninstallReservations = Set<URL>()
+
+  func reserveForUninstall(_ url: URL) -> Bool {
+    operationIndexLock.withLock {
+      guard !uninstallReservations.contains(url), operationsByIdentifier[url]?.isFinished != false, holds.isEmpty else { return false }
+      uninstallReservations.insert(url)
+      return true
+    }
+  }
+
+  func releaseAfterUninstall(_ url: URL) {
+    _ = operationIndexLock.withLock { uninstallReservations.remove(url) }
+  }
+
   private var operationsByIdentifier = [App.Bundle.Identifier: UpdateOperation]()
   /// How recent jobs ended, by job id, so any job id handed out (by the window's jobs too)
   /// can be looked up after it finishes. Bounded; guarded by the index lock.
@@ -438,6 +452,10 @@ class UpdateQueue: OperationQueue, @unchecked Sendable {
   /// the last job holding the same lock.
   private func index(_ operation: UpdateOperation) -> UpdateOperation? {
     operationIndexLock.withLock {
+      if uninstallReservations.contains(operation.appIdentifier) {
+        operation.cancel()
+        return operation
+      }
       let isRecovery = operation is RecoveryOperation
       if let existingOperation = operationsByIdentifier[operation.appIdentifier],
         !existingOperation.isFinished

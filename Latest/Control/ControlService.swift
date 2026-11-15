@@ -28,6 +28,7 @@ final class ControlService {
   /// Who started the jobs started here; the scheduler knows every job, this only adds a name.
   private var callers = [String: String]()
   private var startedHere = [String]()
+  var uninstall: UninstallService?
 
   init(_ dependencies: Dependencies) { self.dependencies = dependencies }
 
@@ -46,6 +47,8 @@ final class ControlService {
       return update(args, caller: request.caller)
     case "status": return await statusWaiting(args)
     case "set": return configure(args)
+    case "uninstall_preview", "uninstall_confirm":
+      return await uninstallRequest(request)
     case "history": return history(limit: Int(args["limit"] ?? "") ?? 20)
     default:
       return .failure(
@@ -209,6 +212,26 @@ final class ControlService {
         "label": .string(Self.label(app)),
         "message": "Updates through \(Self.label(app)). Pass --allow-handoff to open it.",
       ])
+  }
+
+  private func uninstallRequest(_ request: ControlRequest) async -> ControlResponse {
+    guard let uninstall else { return .failure("unsupported", "Uninstall service is unavailable.") }
+    do {
+      let target = request.args["target"]
+      let matches = target.map { target in dependencies.apps().filter { $0.fileURL.path == target || $0.bundleIdentifier == target } } ?? []
+      if target != nil && matches.count != 1 { return .failure(matches.isEmpty ? "not_found" : "ambiguous", "Name one installed app by its absolute path.") }
+      let data: [String: JSONValue]
+      if request.command == "uninstall_preview" {
+        guard let app = matches.first else { return .failure("usage", "Name the app to preview.") }
+        data = try uninstall.preview(app: app.fileURL, withData: Self.flag(request.args["with-data"]), caller: request.caller)
+      } else {
+        guard let token = request.args["token"] else { return .failure("usage", "Provide the preview token.") }
+        data = try await uninstall.confirm(token: token, app: matches.first?.fileURL,
+          withData: request.args["with-data"].map { Self.flag($0) }, caller: request.caller)
+      }
+      return ControlResponse(ok: true, data: data)
+    } catch let error as ControlError { return .failure(error.code, error.message) }
+    catch { return .failure("uninstall_failed", error.localizedDescription) }
   }
 
   private func configure(_ args: [String: String]) -> ControlResponse {
@@ -422,6 +445,7 @@ final class ControlService {
       ]
     case .failed(let reason, let logPath):
       ["state": "failed", "message": .string(reason), "log": JSONValue(logPath)]
+    case .uninstalled: ["state": "uninstalled"]
     case .handedOff: ["state": "handedOff", "label": JSONValue(label)]
     }
   }

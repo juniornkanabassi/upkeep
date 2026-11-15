@@ -147,7 +147,7 @@ struct UpdateOutcomeError: LocalizedError, Sendable {
   init?(outcome: UpdateOutcome) {
     switch outcome {
     case .failed, .needsQuit, .needsPermission: self.outcome = outcome
-    case .updated, .noChange, .handedOff: return nil
+    case .updated, .noChange, .handedOff, .uninstalled: return nil
     }
   }
 
@@ -159,7 +159,7 @@ struct UpdateOutcomeError: LocalizedError, Sendable {
       "This update needs administrator rights: the app belongs to another account, or Homebrew needs your password (Updater copies the brew command for you)."
     case .needsPermission:
       "The last attempt was blocked by App Management. Allow Updater in System Settings → Privacy & Security → App Management, then Retry."
-    case .updated, .noChange, .handedOff: nil
+    case .updated, .noChange, .handedOff, .uninstalled: nil
     }
   }
 }

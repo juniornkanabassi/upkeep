@@ -26,6 +26,7 @@ struct Command: Sendable {
   let example: String
   var params: [Param] = []
   var timeout: Double = 30
+  var mcpOnly = false
 }
 
 let commands: [Command] = [
@@ -83,6 +84,19 @@ let commands: [Command] = [
       Param(name: "target", kind: .string, help: "Bundle id or absolute app path.", required: true, positional: true),
       Param(name: "ignore", kind: .string, help: "Ignore updates for this app.", required: true, values: ["on", "off"])
     ]),
+  Command(name: "uninstall_preview", summary: "Preview removal of one app and exact leftovers. Personal data is unselected unless with-data is true. Returns a caller-bound, single-use token valid for 10 minutes. Never deletes.", example: "uninstall /path/App.app --dry-run", params: [
+    Param(name: "target", kind: .string, help: "Bundle id or absolute app path.", required: true),
+    Param(name: "with-data", kind: .switchFlag, help: "Include personal data in the removal plan.")
+  ], mcpOnly: true),
+  Command(name: "uninstall_confirm", summary: "Move exactly the previewed selection to the Bin. The user MUST confirm the exact plan before this tool is called. May display one macOS administrator prompt. Tokens expire after 10 minutes and cannot be reused.", example: "uninstall /path/App.app --confirm TOKEN", params: [
+    Param(name: "token", kind: .string, help: "Single-use token from uninstall_preview.", required: true)
+  ], timeout: 180, mcpOnly: true),
+  Command(name: "uninstall", summary: "Preview removal or confirm the exact preview after the user approves it.", example: "uninstall /path/App.app --dry-run", params: [
+    Param(name: "target", kind: .string, help: "Bundle id or absolute app path.", required: true, positional: true),
+    Param(name: "dry-run", kind: .switchFlag, help: "Preview only; return a token."),
+    Param(name: "confirm", kind: .string, help: "Token for the user-approved preview."),
+    Param(name: "with-data", kind: .switchFlag, help: "Include personal data.")
+  ], timeout: 180),
 ]
 
 // MARK: Output
@@ -165,6 +179,14 @@ func render(_ response: ControlResponse, command: String) {
       )
       for job in (data["jobs"]?.arrayValue ?? []).compactMap(\.objectValue) { print(jobLine(job)) }
     }
+  case "uninstall":
+    if let token = data["token"]?.stringValue { print("Preview token: \(token) (10 minutes; requires the user's approval)") }
+    for item in (data["items"]?.arrayValue ?? []).compactMap(\.objectValue) {
+      print("\(item["selected"]?.boolValue == true ? "[x]" : "[ ]") \(text(item["path"]) ?? "")  \(text(item["size"]) ?? "0") bytes")
+    }
+    for item in (data["results"]?.arrayValue ?? []).compactMap(\.objectValue) {
+      print("\(text(item["status"]) ?? ""): \(text(item["path"]) ?? "") \(text(item["message"]) ?? "")")
+    }
   case "history":
     let entries = (data["entries"]?.arrayValue ?? []).compactMap(\.objectValue)
     for entry in entries {
@@ -195,7 +217,7 @@ func help(_ command: Command? = nil) {
     print(
       "updater <command> [options]   Control Updater from the shell. A closed Updater starts in the background with no window."
     )
-    for command in commands {
+    for command in commands where !command.mcpOnly {
       print(
         "  \(command.name.padding(toLength: 9, withPad: " ", startingAt: 0)) \(command.summary)")
     }
@@ -361,8 +383,17 @@ for param in command.params where param.required && args[param.name] == nil {
 
 // MARK: Run
 
+var wireCommand = command.name
+if wireCommand == "uninstall" {
+  guard (args["dry-run"] != nil) != (args["confirm"] != nil) else {
+    usage("Use exactly one of --dry-run or --confirm <token>.", command)
+  }
+  if let token = args.removeValue(forKey: "confirm") { wireCommand = "uninstall_confirm"; args["token"] = token }
+  else { wireCommand = "uninstall_preview" }
+  args["dry-run"] = nil
+}
 let request = ControlRequest(
-  id: requestID ?? UUID().uuidString, command: command.name, args: args,
+  id: requestID ?? UUID().uuidString, command: wireCommand, args: args,
   caller: caller ?? "cli-\(getppid())")
 let timeout = timeoutOverride ?? command.timeout
 

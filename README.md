@@ -206,3 +206,30 @@ MCP uses `configure {target, ignored}`, `list {updatesOnly, fields: "full"}` and
 `status {jobId, wait}`. There is no per-app automatic-update setting.
 Exit codes: 0 success, 1 refused/failed, 2 usage, 3 app unavailable,
 4 socket blocked by sandbox, 5 busy/timeout (retryable).
+
+## Uninstall preview and confirmation
+
+```sh
+updater uninstall /path/to/Example.app --dry-run
+updater uninstall /path/to/Example.app --confirm TOKEN
+```
+
+Add `--with-data` to the preview to select Application Support and container data;
+they are unselected by default. Confirmation must use the same selection. Preview
+tokens are tied to their caller, expire after 10 minutes and allow one attempt.
+MCP exposes `uninstall_preview {target, with_data}` and `uninstall_confirm {token}`.
+The person must approve the exact preview before confirmation. Claude receives the
+`anthropic/requiresUserInteraction` hint. For Codex, add:
+
+```toml
+[mcp_servers.updater.tools.uninstall_confirm]
+approval_mode = "prompt"
+```
+
+Files go to the Bin, never permanent deletion. Root-owned items use one macOS
+administrator prompt. Running apps, Updater, Apple system apps and apps in
+`/Applications/JuniorOS Apps` are refused. With another installed copy, only the
+selected app bundle is included. Paths are revalidated before removal. Per-item
+results and `uninstall.log` record what happened; a removed app records `uninstalled`
+in history. Leftover matching is adapted from [Mole](https://github.com/tw93/Mole)
+(GPL-3.0-or-later). The GUI uninstall sheet is a later round.

@@ -12,11 +12,11 @@ final class MCPServer: @unchecked Sendable {
   static let instructions = "Updater manages installed Mac apps. Check, list, update, then use status with wait for jobs. A running app may need a person's quit confirmation; needsQuit is not a reason to retry automatically. Hand-offs open another app only when explicitly requested. Uninstall previews never delete; uninstall confirmation requires the user's approval of the exact plan. Cancelling a call stops waiting, not an update already accepted by the app."
 
   static var tools: [[String: Any]] {
-    commands.map { command in
+    commands.filter { $0.name != "uninstall" }.map { command in
       let name = command.name == "set" ? "configure" : command.name
       var properties: [String: Any] = [:]
       for param in command.params {
-        let key = param.name == "job" ? "jobId" : param.name == "updates" ? "updatesOnly" : param.name == "full" ? "fields" : param.name == "ignore" ? "ignored" : param.name
+        let key = param.name == "with-data" ? "with_data" : param.name == "job" ? "jobId" : param.name == "updates" ? "updatesOnly" : param.name == "full" ? "fields" : param.name == "ignore" ? "ignored" : param.name
         var schema: [String: Any] = ["type": param.kind == .integer ? "integer" : param.kind == .switchFlag || key == "ignored" ? "boolean" : "string", "description": param.help]
         if let values = param.values, key != "ignored" { schema["enum"] = values }
         if key == "fields" { schema = ["type": "string", "enum": ["compact", "full"]] }
@@ -25,11 +25,13 @@ final class MCPServer: @unchecked Sendable {
         properties[key] = schema
       }
       let readOnly = ["list", "status", "history", "uninstall_preview"].contains(name)
-      return ["name": name, "description": command.summary,
+      var tool: [String: Any] = ["name": name, "description": command.summary,
         "inputSchema": ["type": "object", "properties": properties,
           "required": command.params.filter(\.required).map { $0.name == "ignore" ? "ignored" : $0.name }, "additionalProperties": false],
         "outputSchema": ["type": "object", "properties": ["ok": ["type": "boolean"], "data": ["type": "object"], "code": ["type": "string"], "message": ["type": "string"], "version": ["type": "integer"]], "required": ["ok", "version"]],
-        "annotations": ["readOnlyHint": readOnly, "destructiveHint": name == "update", "idempotentHint": true, "openWorldHint": ["update", "check"].contains(name)]]
+        "annotations": ["readOnlyHint": readOnly, "destructiveHint": name == "update" || name == "uninstall_confirm", "idempotentHint": name != "uninstall_confirm", "openWorldHint": ["update", "check"].contains(name)]]
+      if name == "uninstall_confirm" { tool["_meta"] = ["anthropic/requiresUserInteraction": true] }
+      return tool
     }
   }
 
@@ -75,7 +77,7 @@ final class MCPServer: @unchecked Sendable {
       }
       var args: [String: String] = [:]
       for (key, value) in arguments {
-        let wire = key == "jobId" ? "job" : key == "updatesOnly" ? "updates" : key == "fields" ? "full" : key == "ignored" ? "ignore" : key
+        let wire = key == "with_data" ? "with-data" : key == "jobId" ? "job" : key == "updatesOnly" ? "updates" : key == "fields" ? "full" : key == "ignored" ? "ignore" : key
         if key == "fields" { args[wire] = (value as? String == "full") ? "1" : "0" }
         else if key == "ignored" { args[wire] = (value as? Bool == true) ? "on" : "off" }
         else { args[wire] = String(describing: value) }
@@ -89,10 +91,10 @@ final class MCPServer: @unchecked Sendable {
         tasks[requestID] = Task.detached { [self] in
           defer { lock.withLock { tasks[requestID] = nil }; pending.leave() }
           let response: ControlResponse
-          do { response = try ControlClient.send(control, to: ControlPaths.socket, timeout: 55) }
+          do { response = try ControlClient.send(control, to: ControlPaths.socket, timeout: name == "uninstall_confirm" ? 180 : 55) }
           catch let error as ControlError {
             if error.code == "app_not_running", ProcessInfo.processInfo.environment["UPDATER_HOME"] == nil {
-              do { response = try launchAndSend(control, timeout: 55) }
+              do { response = try launchAndSend(control, timeout: name == "uninstall_confirm" ? 180 : 55) }
               catch let launchError as ControlError { response = .failure(launchError.code, launchError.message) }
               catch { response = .failure("failed", String(describing: error)) }
             } else { response = .failure(error.code, error.message) }
