@@ -113,7 +113,7 @@ extension App {
     if isSourcePending { return "Checking…" }
     if isActionable {
       switch capability {
-      case .install, .vendorTool: return "Via \(sourceName)"
+      case .install, .vendorTool: return sourceName
       case .handOff, .unsupported: break
       }
       if relaunchesToUpdate {
