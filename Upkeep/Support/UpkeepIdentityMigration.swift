@@ -13,12 +13,27 @@ enum UpkeepIdentityMigration {
     let old = support.appendingPathComponent(oldFolder)
     let new = support.appendingPathComponent("Upkeep")
     // Do not relocate backup paths while an interrupted installer may still use them.
-    if FileManager.default.fileExists(atPath: new.path),
-      (try? FileManager.default.contentsOfDirectory(atPath: old.path).isEmpty) == true
-    {
+    if FileManager.default.fileExists(atPath: new.path), !holdsData(old) {
       return new
     }
     return FileManager.default.fileExists(atPath: old.path) ? old : new
+  }
+
+  /// Scratch an outdated client may recreate (a 0.11 CLI or MCP server still running made
+  /// `Updater/cli-launch.lock` after the move): not data, never a reason to use or keep the old folder.
+  static let scratch: Set<String> = ["cli-launch.lock", "control.sock", ".DS_Store"]
+
+  static func holdsData(_ folder: URL) -> Bool {
+    let manager = FileManager.default
+    let names = (try? manager.contentsOfDirectory(atPath: folder.path)) ?? []
+    return names.contains { name in
+      if scratch.contains(name) { return false }
+      if name == "logs" {
+        return ((try? manager.contentsOfDirectory(
+          atPath: folder.appendingPathComponent(name).path)) ?? []).contains { $0 != ".DS_Store" }
+      }
+      return true
+    }
   }
 
   /// Returns true once, when old state was migrated. Pending journals stay at their original
@@ -34,7 +49,7 @@ enum UpkeepIdentityMigration {
     var pending = false
     if oldExists {
       if manager.fileExists(atPath: new.path) {
-        guard try manager.contentsOfDirectory(atPath: old.path).isEmpty else {
+        guard !holdsData(old) else {
           throw NSError(
             domain: newDomain, code: 1,
             userInfo: [
@@ -42,6 +57,8 @@ enum UpkeepIdentityMigration {
                 "Both Upkeep and its old data folder exist. Both were kept. Updates are paused. Resolve the duplicate data folders and relaunch Upkeep."
             ])
         }
+        // Only scratch is left in the old folder: remove it so outdated clients stop finding it.
+        try? manager.removeItem(at: old)
       } else {
         let journals = old.appendingPathComponent("transactions")
         if manager.fileExists(atPath: journals.path),

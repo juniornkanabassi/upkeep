@@ -964,6 +964,35 @@ final class InstallLog: Sendable {
       XCTAssertEqual(UpkeepIdentityMigration.root(in: root), root.appendingPathComponent("Upkeep"))
     }
 
+    /// A 0.11 client still running recreated Updater/ with only cli-launch.lock after the move;
+    /// the new folder must win and the scratch folder must go.
+    func testScratchOnlyOldFolderIsIgnoredAndRemoved() throws {
+      let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+      defer { try? FileManager.default.removeItem(at: root) }
+      let old = root.appendingPathComponent(UpkeepIdentityMigration.oldFolder)
+      let new = root.appendingPathComponent("Upkeep")
+      for folder in [old, new, old.appendingPathComponent("logs")] {
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+      }
+      try Data().write(to: old.appendingPathComponent("cli-launch.lock"))
+      try Data("history".utf8).write(to: new.appendingPathComponent("history.jsonl"))
+      XCTAssertFalse(UpkeepIdentityMigration.holdsData(old))
+      XCTAssertEqual(UpkeepIdentityMigration.root(in: root).standardizedFileURL.path, new.standardizedFileURL.path)
+      let oldDomain = "MigrationOld." + UUID().uuidString
+      let newDomain = "MigrationNew." + UUID().uuidString
+      defer {
+        UserDefaults.standard.removeTestPersistentDomain(forName: oldDomain)
+        UserDefaults.standard.removeTestPersistentDomain(forName: newDomain)
+      }
+      _ = try UpkeepIdentityMigration.migrate(support: root, oldDomain: oldDomain, newDomain: newDomain)
+      XCTAssertFalse(FileManager.default.fileExists(atPath: old.path), "scratch folder removed")
+      XCTAssertTrue(FileManager.default.fileExists(atPath: new.appendingPathComponent("history.jsonl").path))
+      // Real data in the old folder still counts.
+      try FileManager.default.createDirectory(at: old, withIntermediateDirectories: true)
+      try Data("history".utf8).write(to: old.appendingPathComponent("history.jsonl"))
+      XCTAssertTrue(UpkeepIdentityMigration.holdsData(old))
+    }
+
     private func checkMigration(oldData: Bool, newData: Bool, pending: Bool, debris: Bool = false)
       throws
     {
