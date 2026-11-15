@@ -179,7 +179,7 @@ func render(_ response: ControlResponse, command: String) {
       )
       for job in (data["jobs"]?.arrayValue ?? []).compactMap(\.objectValue) { print(jobLine(job)) }
     }
-  case "uninstall":
+  case "uninstall", "uninstall_preview", "uninstall_confirm":
     if let token = data["token"]?.stringValue { print("Preview token: \(token) (10 minutes; requires the user's approval)") }
     for item in (data["items"]?.arrayValue ?? []).compactMap(\.objectValue) {
       print("\(item["selected"]?.boolValue == true ? "[x]" : "[ ]") \(text(item["path"]) ?? "")  \(text(item["size"]) ?? "0") bytes")
@@ -476,6 +476,7 @@ do {
     render(response, command: command.name)
   } else {
     stderrLine("\(response.code ?? "error"): \(response.message ?? "The request failed.")")
+    if wireCommand == "uninstall_confirm" { render(response, command: "uninstall") }
   }
   exit(response.ok ? 0 : ControlClient.exitCode(for: response.code))
 } catch let error as ControlError {

@@ -15,7 +15,7 @@ final class UninstallService {
   var now: () -> Date = Date.init
   var isUpdating: (URL) -> Bool
   var trash: (URL) throws -> Void
-  var removeAdmin: ([UninstallItem]) async throws -> Void
+  var removeAdmin: ([UninstallItem], URL) async throws -> Void
   var beginExclusive: (URL) throws -> (() -> Void) = { _ in {} }
   var bootout: (URL, Bool) async throws -> Void
   private var tickets: [String: Ticket] = [:]
@@ -23,7 +23,7 @@ final class UninstallService {
   init(planner: UninstallPlanner, history: UpdateHistoryStore?, logURL: URL,
        isUpdating: @escaping (URL) -> Bool = { _ in false },
        trash: @escaping (URL) throws -> Void = { try FileManager.default.trashItem(at: $0, resultingItemURL: nil) },
-       removeAdmin: @escaping ([UninstallItem]) async throws -> Void = { try await UninstallService.adminTrash($0) },
+       removeAdmin: @escaping ([UninstallItem], URL) async throws -> Void = { try await UninstallService.adminTrash($0, target: $1) },
        bootout: @escaping (URL, Bool) async throws -> Void = { url, system in
          if !system { try await UninstallService.unload(url) }
        }) {
@@ -90,16 +90,21 @@ final class UninstallService {
     if !admin.isEmpty {
       do {
         for item in admin { try planner.validate(item) }
-        try await removeAdmin(admin)
+        try await removeAdmin(admin, target)
         for item in admin {
           let gone = !FileManager.default.fileExists(atPath: item.path)
           results.append(result(item, gone ? "removed" : "failed", gone ? nil : "Still present after the administrator operation."))
         }
       } catch {
-        for item in admin { results.append(result(item, "failed", error.localizedDescription)) }
+        for item in admin {
+          let gone = !FileManager.default.fileExists(atPath: item.path)
+          results.append(result(item, gone ? "removed" : "failed", gone ? nil : error.localizedDescription))
+        }
         for item in selected.sorted(by: { $0.kind != .app && $1.kind == .app }) where !item.needsAdmin { results.append(result(item, "skipped", "Administrator operation failed or was cancelled.")) }
         try appendLog(results, run: token)
-        return ["results": .array(results.map(JSONValue.object))]
+        var failed = outcome(results)
+        failed["ok"] = .bool(false)
+        return failed
       }
     }
     for item in selected.sorted(by: { $0.kind != .app && $1.kind == .app }) where !item.needsAdmin {
@@ -108,6 +113,7 @@ final class UninstallService {
         try planner.validate(item)
         let url = URL(fileURLWithPath: item.path)
         if item.kind == .launchAgent { try await bootout(url, false); try planner.validate(item) }
+        guard !planner.isRunning(target), !isUpdating(target) else { throw ControlError("busy", "The app started running or updating.") }
         try trash(url)
         guard !FileManager.default.fileExists(atPath: item.path) else { throw ControlError("trash_failed", "The item is still present.") }
         results.append(result(item, "removed", nil))
@@ -117,7 +123,15 @@ final class UninstallService {
     if let before, results.contains(where: { $0["path"] == .string(target.path) && $0["status"] == "removed" }) {
       history?.record(UpdateHistoryEntry(before: before, after: nil, outcome: .uninstalled))
     }
-    return ["results": .array(results.map(JSONValue.object))]
+    return outcome(results)
+  }
+
+  private func outcome(_ results: [[String: JSONValue]]) -> [String: JSONValue] {
+    // Unselected personal data is expected; failed or skipped selected items are not success.
+    let complete = results.allSatisfy {
+      $0["status"] == "removed" || $0["message"] == "Personal data was not selected."
+    }
+    return ["ok": .bool(complete), "results": .array(results.map(JSONValue.object))]
   }
 
   private func result(_ item: UninstallItem, _ status: String, _ message: String?) -> [String: JSONValue] {
@@ -153,7 +167,7 @@ final class UninstallService {
   }
 
   /// One system prompt. No passwords, permanent deletion, shell expansion of paths or custom helper trust.
-  private static func adminTrash(_ items: [UninstallItem]) async throws {
+  private static func adminTrash(_ items: [UninstallItem], target: URL) async throws {
     let homePath = realpath(FileManager.default.homeDirectoryForCurrentUser.path, nil)
     guard let homePath else { throw ControlError("unsafe_trash", "Cannot resolve the home folder.") }
     defer { free(homePath) }
@@ -162,8 +176,24 @@ final class UninstallService {
       try FileManager.default.createDirectory(at: trash, withIntermediateDirectories: false)
     }
     guard UninstallPlanner.safePath(trash, under: trash.deletingLastPathComponent()) else { throw ControlError("unsafe_trash", "The Bin path is unsafe.") }
+    let shell = administratorShell(items, target: target, trash: trash)
+    let literal = shell.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"").replacingOccurrences(of: "\n", with: "\\n")
+    _ = try await InstallerCommand.run("/usr/bin/osascript", ["-e", "do shell script \"\(literal)\" with administrator privileges"], cancellable: false)
+  }
+
+  static func administratorShell(_ items: [UninstallItem], target: URL, trash: URL) -> String {
     func q(_ value: String) -> String { "'" + value.replacingOccurrences(of: "'", with: "'\\''") + "'" }
-    var commands = ["set -eu"]
+    var commands = ["set -eu", "app_path=" + q(target.path), """
+      app_not_running() {
+        processes=$(/bin/ps -axo comm=) || return 1
+        printf '%s\\n' "$processes" | (
+          while IFS= read -r executable; do
+            case "$executable" in "$app_path"/Contents/MacOS/*) exit 1 ;; esac
+          done
+        )
+      }
+      app_not_running
+      """]
     for item in items {
       // Recheck identity and each parent in the privileged process as well.
       let expected = "\(item.device):\(item.inode):\(item.modified):\(item.changed)"
@@ -183,10 +213,9 @@ final class UninstallService {
       if let hash = item.identityHash {
         commands.append("[ \"$(/usr/bin/shasum -a 256 \(q(item.path + "/Contents/Info.plist")) | /usr/bin/cut -d ' ' -f 1)\" = \(q(hash)) ]")
       }
+      commands.append("app_not_running")
       commands.append("/bin/mv -n \(q(item.path)) \(q(destination))")
     }
-    let shell = commands.joined(separator: "\n")
-    let literal = shell.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"").replacingOccurrences(of: "\n", with: "\\n")
-    _ = try await InstallerCommand.run("/usr/bin/osascript", ["-e", "do shell script \"\(literal)\" with administrator privileges"], cancellable: false)
+    return commands.joined(separator: "\n")
   }
 }

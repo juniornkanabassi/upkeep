@@ -88,10 +88,16 @@ final class ControlTest: XCTestCase {
   /// A fixture app at 1.0 whose update rewrites its own Info.plist to 1.1 through the queue.
   private func fixtureApp(
     _ harness: Harness, name: String, lock: String? = nil, gate: AsyncStream<Void>? = nil,
-    declinesQuit: Bool = false, log: InstallLog? = nil, handOff: OpenCount? = nil
+    declinesQuit: Bool = false, log: InstallLog? = nil, handOff: OpenCount? = nil, canonicalPath: Bool = false
   ) throws -> App {
+    var directory = try disposableDirectory()
+    if canonicalPath {
+      let resolved = try XCTUnwrap(realpath(directory.path, nil))
+      directory = URL(fileURLWithPath: String(cString: resolved))
+      free(resolved)
+    }
     let url = try FixtureApp.make(
-      in: try disposableDirectory(), name: name, identifier: "com.example.\(name.lowercased())",
+      in: directory, name: name, identifier: "com.example.\(name.lowercased())",
       version: "1.0", signed: false)
     let bundle = try XCTUnwrap(BundleCollector.collectBundle(at: url))
     let queue = harness.queue
@@ -642,6 +648,106 @@ final class ControlTest: XCTestCase {
     harness.server?.stop()
     let closed = try await run(cli, ["list"], home: harness.home)
     XCTAssertEqual(closed.status, 3, "a test home never starts the real app")
+  }
+
+  func testFailedUninstallReturnsNonzeroCLIAndMCPErrorWithDetails() async throws {
+    for mode in ["failed", "cancelled", "partial"] {
+      let harness = try harness()
+      let app = try fixtureApp(harness, name: "Removal", canonicalPath: true)
+      harness.apps = [app]
+      let home = app.fileURL.deletingLastPathComponent()
+      var planner = UninstallPlanner(home: home, systemLibrary: home.appendingPathComponent("Library"),
+        copies: { _ in [app.fileURL.path] }, isRunning: { _ in false })
+      if mode == "cancelled" { planner.uid = getuid() + 1 }
+      if mode == "partial" {
+        let cache = home.appendingPathComponent("Library/Caches/com.example.removal")
+        try FileManager.default.createDirectory(at: cache.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data().write(to: cache)
+      }
+      let uninstall = UninstallService(planner: planner, history: nil, logURL: home.appendingPathComponent("log"),
+        trash: { url in
+          if mode == "partial", url.pathExtension != "app" {
+            try FileManager.default.moveItem(at: url, to: home.appendingPathComponent("moved-cache"))
+          } else { throw CocoaError(.fileWriteNoPermission) }
+        }, removeAdmin: { _, _ in throw CancellationError() })
+      harness.service.uninstall = uninstall
+      let token = try XCTUnwrap(uninstall.preview(app: app.fileURL, withData: false, caller: "test")["token"]?.stringValue)
+      let cli = try await run(helpers.appendingPathComponent("Helpers/updater"),
+        ["uninstall", app.bundleIdentifier, "--confirm", token, "--caller", "test", "--json"], home: harness.home)
+      XCTAssertNotEqual(cli.status, 0)
+      let response = try JSONDecoder().decode(ControlResponse.self, from: Data(cli.output.utf8))
+      XCTAssertFalse(response.ok)
+      XCTAssertEqual(response.code, "uninstall_failed")
+      XCTAssertTrue(results(response).contains { $0["status"] == "failed" && $0["message"] != nil })
+      if mode == "partial" { XCTAssertTrue(results(response).contains { $0["status"] == "removed" }) }
+
+      let textToken = try XCTUnwrap(uninstall.preview(app: app.fileURL, withData: false, caller: "test")["token"]?.stringValue)
+      let textFailure = try await run(helpers.appendingPathComponent("Helpers/updater"),
+        ["uninstall", app.bundleIdentifier, "--confirm", textToken, "--caller", "test"], home: harness.home)
+      XCTAssertNotEqual(textFailure.status, 0)
+      XCTAssertTrue(textFailure.output.contains("failed: " + app.fileURL.path), textFailure.output)
+
+      // Exercise the built MCP error adapter over the socket with the actual service outcome.
+      harness.server?.stop()
+      harness.server = try ControlServer(path: harness.socket, allowedUID: getuid()) { _ in response }
+      let mcp = try await run(helpers.appendingPathComponent("Helpers/updater"), ["mcp"], home: harness.home,
+        input: "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"uninstall_confirm\",\"arguments\":{\"token\":\"fixture\"}}}\n")
+      let reply = try XCTUnwrap(try JSONSerialization.jsonObject(with: Data(mcp.output.utf8)) as? [String: Any])
+      let result = try XCTUnwrap(reply["result"] as? [String: Any])
+      XCTAssertEqual(result["isError"] as? Bool, true)
+      let content = try XCTUnwrap(result["content"] as? [[String: Any]])
+      let text = try XCTUnwrap(content.first?["text"] as? String)
+      let decoded = try JSONDecoder().decode(ControlResponse.self, from: Data(text.utf8))
+      XCTAssertEqual(decoded.data, response.data)
+      XCTAssertFalse(decoded.ok)
+    }
+  }
+
+  func testMCPNumericAndStringIDsHaveIndependentReplayKeys() async throws {
+    let harness = try harness()
+    let app = try fixtureApp(harness, name: "Typed")
+    harness.apps = [app]
+    let input = """
+      {"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"configure","arguments":{"target":"com.example.typed","ignored":true}}}
+      {"jsonrpc":"2.0","id":"1","method":"tools/call","params":{"name":"configure","arguments":{"target":"com.example.typed","ignored":false}}}
+
+      """
+    let output = try await run(helpers.appendingPathComponent("Helpers/updater"), ["mcp"], home: harness.home, input: input)
+    let replies = try output.output.split(separator: "\n").map {
+      try XCTUnwrap(JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any])
+    }
+    XCTAssertEqual(replies.count, 2)
+    XCTAssertEqual(replies.filter { $0["id"] is String }.count, 1)
+    for reply in replies {
+      let result = try XCTUnwrap(reply["result"] as? [String: Any])
+      XCTAssertEqual(result["isError"] as? Bool, false)
+      let content = try XCTUnwrap(result["content"] as? [[String: Any]])
+      let text = try XCTUnwrap(content.first?["text"] as? String)
+      let json = try JSONSerialization.jsonObject(with: Data(text.utf8)) as? NSDictionary
+      XCTAssertEqual(json, result["structuredContent"] as? NSDictionary)
+    }
+  }
+
+  func testMCPCancellationKeepsOtherIDTypeAlive() async throws {
+    let harness = try harness()
+    harness.server?.stop()
+    harness.server = try ControlServer(path: harness.socket, allowedUID: getuid()) { _ in
+      try? await Task.sleep(for: .milliseconds(300))
+      return ControlResponse(ok: true, data: ["fixture": .bool(true)])
+    }
+    for cancelled in ["1", "\"1\""] {
+      let input = """
+        {"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"list","arguments":{}}}
+        {"jsonrpc":"2.0","id":"1","method":"tools/call","params":{"name":"list","arguments":{}}}
+        {"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId":\(cancelled)}}
+
+        """
+      let output = try await run(helpers.appendingPathComponent("Helpers/updater"), ["mcp"], home: harness.home, input: input)
+      let replies = output.output.split(separator: "\n")
+      XCTAssertEqual(replies.count, 1)
+      let reply = try XCTUnwrap(try JSONSerialization.jsonObject(with: Data(try XCTUnwrap(replies.first).utf8)) as? [String: Any])
+      XCTAssertEqual(reply["id"] is String, cancelled == "1")
+    }
   }
 
   func testMCPToolsCallTheSameSocket() async throws {

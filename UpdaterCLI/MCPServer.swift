@@ -55,10 +55,10 @@ final class MCPServer: @unchecked Sendable {
     }
     let params = request["params"] as? [String: Any] ?? [:]
     if method == "notifications/cancelled" {
-      if let id = params["requestId"] { lock.withLock { tasks[String(describing: id)]?.cancel() } }
+      if let id = params["requestId"] { lock.withLock { tasks[Self.requestKey(id) ?? ""]?.cancel() } }
       return
     }
-    guard let id = request["id"], id is String || id is NSNumber else { return }
+    guard let id = request["id"], let requestID = Self.requestKey(id) else { return }
     func result(_ value: [String: Any]) { send(["jsonrpc": "2.0", "id": id, "result": value]) }
     switch method {
     case "initialize":
@@ -82,7 +82,6 @@ final class MCPServer: @unchecked Sendable {
         else if key == "ignored" { args[wire] = (value as? Bool == true) ? "on" : "off" }
         else { args[wire] = String(describing: value) }
       }
-      let requestID = String(describing: id)
       let rpcID = (try! JSONSerialization.data(withJSONObject: [id], options: [.fragmentsAllowed]))
       let control = ControlRequest(id: requestID, command: name == "configure" ? "set" : name, args: args, caller: caller)
       pending.enter()
@@ -109,6 +108,14 @@ final class MCPServer: @unchecked Sendable {
     }
   }
 
+  private static func requestKey(_ id: Any) -> String? {
+    if let string = id as? String { return "string:" + string }
+    if let number = id as? NSNumber, CFGetTypeID(number) != CFBooleanGetTypeID() {
+      return "number:" + number.stringValue
+    }
+    return nil
+  }
+
   private static func valid(_ arguments: [String: Any], schema: [String: Any]) -> Bool {
     let properties = schema["properties"] as! [String: [String: Any]]
     guard (schema["required"] as! [String]).allSatisfy({ arguments[$0] != nil }) else { return false }
@@ -131,6 +138,6 @@ final class MCPServer: @unchecked Sendable {
   private static func toolResult(_ response: ControlResponse) -> [String: Any] {
     let data = try! JSONEncoder().encode(response)
     return ["structuredContent": try! JSONSerialization.jsonObject(with: data), "isError": !response.ok,
-      "content": [["type": "text", "text": response.message ?? (response.ok ? "Request completed." : "Request failed.")]]]
+      "content": [["type": "text", "text": String(decoding: data, as: UTF8.self)]]]
   }
 }

@@ -4,6 +4,7 @@
 import CryptoKit
 import Darwin
 import Foundation
+import Security
 
 struct UninstallItem: Codable, Equatable, Sendable {
   enum Kind: String, Codable, Sendable { case app, data, cache, prefs, launchAgent, system }
@@ -36,6 +37,17 @@ struct UninstallPlanner: Sendable {
   let copies: @Sendable (String) throws -> Set<String>
   let isRunning: @MainActor @Sendable (URL) -> Bool
 
+  var isAppleSigned: @Sendable (URL) -> Bool = UninstallPlanner.appleSigned
+
+  static func appleSigned(_ app: URL) -> Bool {
+    var code: SecStaticCode?
+    var requirement: SecRequirement?
+    guard SecStaticCodeCreateWithPath(app as CFURL, [], &code) == errSecSuccess,
+      let code, SecRequirementCreateWithString("anchor apple" as CFString, [], &requirement) == errSecSuccess,
+      let requirement else { return false }
+    return SecStaticCodeCheckValidity(code, SecCSFlags(rawValue: kSecCSStrictValidate), requirement) == errSecSuccess
+  }
+
   static func identifier(at app: URL) throws -> String {
     let info = try dictionary(app.appendingPathComponent("Contents/Info.plist"))
     guard let id = info["CFBundleIdentifier"] as? String,
@@ -55,8 +67,8 @@ struct UninstallPlanner: Sendable {
   func plan(app: URL, withData: Bool) throws -> UninstallPlan {
     let id = try Self.identifier(at: app)
     guard app.pathExtension == "app", !app.path.hasPrefix("/System/"),
-      !(id.hasPrefix("com.apple.") && app.path.hasPrefix("/Applications/")),
-      id != "com.juniornkanabassi.Updater",
+      !id.hasPrefix("com.apple."), !isAppleSigned(app),
+      !id.hasPrefix("com.juniornkanabassi."),
       !app.path.hasPrefix("/Applications/JuniorOS Apps/") else {
       throw ControlError("protected_app", "Updater and protected system or JuniorOS apps cannot be uninstalled.")
     }
@@ -77,7 +89,7 @@ struct UninstallPlanner: Sendable {
       let keyed: [(String, String, UninstallItem.Kind, Bool)] = [
         ("Application Support", id, .data, true), ("Caches", id, .cache, false),
         ("Logs", id, .cache, false), ("Saved Application State", id + ".savedState", .cache, false),
-        ("Containers", id, .data, true), ("WebKit", id, .cache, false),
+        ("WebKit", id, .cache, false),
         ("WebKit/com.apple.WebKit.WebContent", id, .cache, false),
         ("HTTPStorages", id, .cache, false), ("HTTPStorages", id + ".binarycookies", .cache, false),
         ("Cookies", id + ".binarycookies", .cache, false), ("Application Scripts", id, .data, true),
@@ -139,10 +151,9 @@ struct UninstallPlanner: Sendable {
   }
 
   static func metadata(_ object: Any, names id: String) -> Bool {
-    if let string = object as? String { return string == id }
-    if let array = object as? [Any] { return array.contains { metadata($0, names: id) } }
-    if let dictionary = object as? [String: Any] { return dictionary.values.contains { metadata($0, names: id) } }
-    return false
+    // Creator metadata names a contributor, not the exclusive owner of shared data.
+    guard let dictionary = object as? [String: Any] else { return false }
+    return dictionary["MCMMetadataIdentifier"] as? String == id
   }
 
   private func children(_ root: URL) -> [URL] {

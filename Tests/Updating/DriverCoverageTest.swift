@@ -146,6 +146,26 @@ final class DriverCoverageTest: XCTestCase {
     XCTAssertEqual(ARKUpdateOperation.shellQuote("a'b"), "'a'\\''b'")
   }
 
+  func testARKRequirementArgumentExecutesSignedFixture() throws {
+    let root = try root()
+    let tool = root.appendingPathComponent("arkinstaller")
+    let source = root.appendingPathComponent("fixture.c")
+    try Data("int main(void) { return 0; }".utf8).write(to: source)
+    func run(_ executable: String, _ args: [String]) throws -> Int32 {
+      let process = Process()
+      process.executableURL = URL(fileURLWithPath: executable)
+      process.arguments = args
+      try process.run(); process.waitUntilExit()
+      return process.terminationStatus
+    }
+    XCTAssertEqual(try run("/usr/bin/clang", [source.path, "-o", tool.path]), 0)
+    XCTAssertEqual(try run("/usr/bin/codesign", ["--force", "--sign", "-", "--identifier", "ark-fixture", tool.path]), 0)
+    // Use the production shell with a fixture identity; no admin prompt or driver installation.
+    let shell = ARKUpdateOperation.administratorShell(tool: tool, requirement: "identifier \"ark-fixture\"")
+    XCTAssertEqual(try run("/bin/sh", ["-c", shell]), 0)
+    XCTAssertNotEqual(try run("/bin/sh", ["-c", ARKUpdateOperation.administratorShell(tool: tool)]), 0)
+  }
+
   func testBlackmagicCatalogueParsesVersionAndRejectsMissingFields() throws {
     let version = try BlackmagicCatalogue.version(from: Data(#"{"mac":{"major":16,"minor":5,"releaseNum":0}}"#.utf8))
     XCTAssertEqual(version.versionNumber, "16.5.0")

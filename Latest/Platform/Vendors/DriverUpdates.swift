@@ -95,18 +95,23 @@ final class ARKUpdateOperation: UpdateOperation, @unchecked Sendable {
   }
 
   static func administratorScript(tool: URL) -> String {
-    // The privileged process copies first into a root-owned directory, then validates the
-    // copy against Rogue Amoeba's designated identity before executing it. A user-writable
-    // source cannot be swapped after validation to execute different code as root.
-    let requirement = "anchor apple generic and identifier \"arkinstaller\" and certificate leaf[subject.OU] = \"7266XEXAPM\""
-    let command = "set -eu; d=$(/usr/bin/mktemp -d /private/tmp/updater-ark.XXXXXX); "
-      + "trap '/bin/rm -rf \"$d\"' EXIT; /bin/cp " + shellQuote(tool.path)
-      + " \"$d/arkinstaller\"; /bin/chmod 700 \"$d/arkinstaller\"; "
-      + "/usr/bin/codesign --verify --strict --all-architectures -R " + shellQuote(requirement)
-      + " \"$d/arkinstaller\"; \"$d/arkinstaller\" install --silent"
+    let command = administratorShell(tool: tool)
     let escaped = command.replacingOccurrences(of: "\\", with: "\\\\")
       .replacingOccurrences(of: "\"", with: "\\\"")
     return "do shell script \"\(escaped)\" with administrator privileges"
+  }
+
+  static func administratorShell(tool: URL,
+    requirement: String = "anchor apple generic and identifier \"arkinstaller\" and certificate leaf[subject.OU] = \"7266XEXAPM\"") -> String {
+    // The privileged process copies first into a root-owned directory, then validates the
+    // copy against Rogue Amoeba's designated identity before executing it. A user-writable
+    // source cannot be swapped after validation to execute different code as root.
+    let command = "set -eu; d=$(/usr/bin/mktemp -d /private/tmp/updater-ark.XXXXXX); "
+      + "trap '/bin/rm -rf \"$d\"' EXIT; /bin/cp " + shellQuote(tool.path)
+      + " \"$d/arkinstaller\"; /bin/chmod 700 \"$d/arkinstaller\"; "
+      + "/usr/bin/codesign --verify --strict --all-architectures -R=" + shellQuote(requirement)
+      + " \"$d/arkinstaller\"; \"$d/arkinstaller\" install --silent"
+    return command
   }
 
   static func installWithAdministrator(_ tool: URL) async throws {

@@ -43,6 +43,111 @@ final class UninstallTest: XCTestCase {
     XCTAssertTrue(plan.items.contains { $0.path.hasSuffix("/owned") })
   }
 
+  func testCreatorAndGroupIdentityNeverClaimContainerEvenAtExactPath() throws {
+    let (_, app, planner) = try fixture()
+    for directory in ["Containers", "Group Containers"] {
+      for (leaf, metadata) in [
+        ("com.example.clean", ["MCMMetadataIdentifier": "group.shared", "MCMMetadataCreator": "com.example.clean"]),
+        ("creator-only", ["MCMMetadataCreator": "com.example.clean"]),
+        ("nested", ["Nested": ["MCMMetadataIdentifier": "com.example.clean"]]),
+        ("exclusive", ["MCMMetadataIdentifier": "com.example.clean"])
+      ] as [(String, [String: Any])] {
+        let data = try PropertyListSerialization.data(fromPropertyList: metadata, format: .xml, options: 0)
+        try file(planner.home.appendingPathComponent("Library/" + directory + "/" + leaf + "/.com.apple.containermanagerd.metadata.plist"), data: data)
+      }
+    }
+    let plan = try planner.plan(app: app, withData: true)
+    XCTAssertEqual(plan.items.filter(\.personalData).count, 2)
+    XCTAssertTrue(plan.items.filter(\.personalData).allSatisfy { $0.path.hasSuffix("/exclusive") })
+  }
+
+  func testProtectedIdentitiesOutsideApplications() throws {
+    for id in ["com.juniornkanabassi.VideoPrompter", "com.apple.Example"] {
+      let (_, app, planner) = try fixture(id: id)
+      XCTAssertThrowsError(try planner.plan(app: app, withData: true)) {
+        XCTAssertEqual(($0 as? ControlError)?.code, "protected_app")
+      }
+    }
+    let (root, app, original) = try fixture()
+    var planner = original
+    planner.isAppleSigned = { _ in true }
+    XCTAssertThrowsError(try planner.plan(app: app, withData: true))
+    // Preserve Apple's signature in a disposable copy, without touching a real app.
+    let signed = root.appendingPathComponent("apple-binary")
+    try FileManager.default.copyItem(at: URL(fileURLWithPath: "/usr/bin/true"), to: signed)
+    XCTAssertTrue(UninstallPlanner.appleSigned(signed))
+    XCTAssertFalse(UninstallPlanner.appleSigned(app))
+  }
+
+  func testRunningAfterLaunchAgentUnloadPreventsMove() async throws {
+    let (root, app, original) = try fixture()
+    try file(original.home.appendingPathComponent("Library/LaunchAgents/com.example.clean.plist"))
+    var running = false
+    let planner = UninstallPlanner(home: original.home, systemLibrary: original.systemLibrary,
+      copies: { _ in [app.path] }, isRunning: { _ in running })
+    var moved = 0
+    let service = UninstallService(planner: planner, history: nil, logURL: root.appendingPathComponent("log"),
+      trash: { _ in moved += 1 }, removeAdmin: { _, _ in XCTFail() }, bootout: { _, _ in running = true })
+    let token = try XCTUnwrap(service.preview(app: app, withData: false, caller: "test")["token"]?.stringValue)
+    let result = try await service.confirm(token: token, app: nil, withData: nil, caller: "test")
+    XCTAssertEqual(moved, 0)
+    XCTAssertEqual(result["ok"], .bool(false))
+    XCTAssertTrue(result["results"]!.arrayValue!.allSatisfy { $0.objectValue?["status"] == "failed" })
+  }
+
+  func testPrivilegedShellRechecksRunningAfterPromptAndBeforeEachMove() throws {
+    for startsAfterFirstMove in [false, true] {
+      let (root, app, planner) = try fixture()
+      let cache = planner.home.appendingPathComponent("Library/Caches/com.example.clean")
+      try file(cache)
+      let plan = try planner.plan(app: app, withData: false)
+      let trash = root.appendingPathComponent("trash")
+      try FileManager.default.createDirectory(at: trash, withIntermediateDirectories: true)
+      let running = root.appendingPathComponent("running")
+      let ps = root.appendingPathComponent("ps")
+      try file(ps, data: Data(("#!/bin/sh\nif [ -f '" + running.path + "' ]; then printf '%s\\n' '" + app.path + "/Contents/MacOS/Example'; fi\n").utf8))
+      try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: ps.path)
+      let mv = root.appendingPathComponent("mv")
+      try file(mv, data: Data(("#!/bin/sh\n/bin/mv \"$@\"\n/usr/bin/touch '" + running.path + "'\n").utf8))
+      try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: mv.path)
+      if !startsAfterFirstMove { try file(running) }
+      let shell = UninstallService.administratorShell(plan.items.filter(\.selected), target: app, trash: trash)
+        .replacingOccurrences(of: "/bin/ps", with: ps.path)
+        .replacingOccurrences(of: "/bin/mv", with: mv.path)
+      let process = Process()
+      process.executableURL = URL(fileURLWithPath: "/bin/sh")
+      process.arguments = ["-c", shell]
+      try process.run(); process.waitUntilExit()
+      XCTAssertNotEqual(process.terminationStatus, 0)
+      XCTAssertTrue(FileManager.default.fileExists(atPath: app.path))
+      XCTAssertEqual(FileManager.default.fileExists(atPath: cache.path), !startsAfterFirstMove)
+    }
+  }
+
+  func testAdministratorFailureRetainsPartialItemDetails() async throws {
+    for removedCount in 0...2 {
+      let (root, app, original) = try fixture()
+      try file(original.home.appendingPathComponent("Library/Caches/com.example.clean"))
+      var planner = original
+      planner.uid = getuid() + 1 // Mark only disposable fixtures as administrator-owned.
+      let service = UninstallService(planner: planner, history: nil, logURL: root.appendingPathComponent("log"),
+        trash: { _ in XCTFail() }, removeAdmin: { items, target in
+          XCTAssertEqual(target.path, app.path)
+          for (index, item) in items.sorted(by: { $0.kind != .app && $1.kind == .app }).prefix(removedCount).enumerated() {
+            try FileManager.default.moveItem(atPath: item.path, toPath: root.appendingPathComponent("moved-\(index)").path)
+          }
+          throw CancellationError()
+        })
+      let token = try XCTUnwrap(service.preview(app: app, withData: false, caller: "test")["token"]?.stringValue)
+      let outcome = try await service.confirm(token: token, app: nil, withData: nil, caller: "test")
+      XCTAssertEqual(outcome["ok"], .bool(false))
+      let results = try XCTUnwrap(outcome["results"]?.arrayValue)
+      XCTAssertEqual(results.count, 2)
+      XCTAssertEqual(results.filter { $0.objectValue?["status"] == "removed" }.count, removedCount)
+      XCTAssertEqual(FileManager.default.fileExists(atPath: app.path), removedCount < 2)
+    }
+  }
+
   func testCommonNamesNeverClaimNameDerivedData() throws {
     let (_, app, planner) = try fixture(name: "Music")
     try file(planner.home.appendingPathComponent("Library/Application Support/Music"))
@@ -84,7 +189,7 @@ final class UninstallTest: XCTestCase {
     let history = UpdateHistoryStore(fileURL: root.appendingPathComponent("history"))
     let service = UninstallService(planner: planner, history: history, logURL: root.appendingPathComponent("uninstall.log"), trash: {
       try FileManager.default.moveItem(at: $0, to: trash.appendingPathComponent($0.lastPathComponent))
-    }, removeAdmin: { _ in XCTFail("fixture must not request admin") }, bootout: { _, _ in })
+    }, removeAdmin: { _, _ in XCTFail("fixture must not request admin") }, bootout: { _, _ in })
     let token = try XCTUnwrap(service.preview(app: app, withData: false, caller: "owner")["token"]?.stringValue)
     do { _ = try await service.confirm(token: token, app: nil, withData: nil, caller: "other"); XCTFail("caller") } catch {}
     let result = try await service.confirm(token: token, app: app, withData: false, caller: "owner")
@@ -105,7 +210,7 @@ final class UninstallTest: XCTestCase {
     let cache = planner.home.appendingPathComponent("Library/Caches/com.example.clean")
     try file(cache)
     var moved = 0
-    let service = UninstallService(planner: planner, history: nil, logURL: root.appendingPathComponent("log"), trash: { _ in moved += 1 }, removeAdmin: { _ in XCTFail() }, bootout: { _, _ in })
+    let service = UninstallService(planner: planner, history: nil, logURL: root.appendingPathComponent("log"), trash: { _ in moved += 1 }, removeAdmin: { _, _ in XCTFail() }, bootout: { _, _ in })
     let token = try XCTUnwrap(service.preview(app: app, withData: false, caller: "owner")["token"]?.stringValue)
     do { _ = try await service.confirm(token: token, app: nil, withData: true, caller: "owner"); XCTFail("selection") } catch {}
     try FileManager.default.moveItem(at: cache, to: root.appendingPathComponent("old-cache"))
