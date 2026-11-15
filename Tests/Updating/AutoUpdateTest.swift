@@ -22,7 +22,7 @@ final class AutoUpdateTest: XCTestCase {
   }
 
   override func tearDown() async throws {
-    defaults.removePersistentDomain(forName: suite)
+    defaults.removeTestPersistentDomain(forName: suite)
     try? FileManager.default.removeItem(at: historyURL)
   }
 
@@ -194,8 +194,7 @@ private final class RecordingUpdating: AppUpdating, @unchecked Sendable {
 
 @MainActor
 private final class StubCoordinator: UpdateCheckCoordinating {
-  let appProvider: any AppProviding = AppDataStore(
-    userDefaults: UserDefaults(suiteName: "AutoUpdateTest.stub")!)
+  let appProvider: any AppProviding = AppDataStore(userDefaults: UserDefaults())  // never written
   var progressDelegate: (any UpdateCheckProgressReporting)?
   var checkCompletion: (@MainActor (UpdateCheckCompletion) -> Void)?
   func run(hardRefresh: Bool, origin: UpdateCheckOrigin) {}
