@@ -100,10 +100,19 @@ final class SparkleUpdateCheckerOperation: NSObject, @unchecked Sendable {
     return prefix.hasPrefix("<!doctype html") || prefix.hasPrefix("<html")
   }
 
+  static func consentProbeConfiguration() -> URLSessionConfiguration {
+    let configuration = URLSessionConfiguration.ephemeral
+    configuration.timeoutIntervalForRequest = checkTimeout
+    configuration.timeoutIntervalForResource = checkTimeout
+    return configuration
+  }
+
   private static func feedAnswersWithWebPage(_ url: URL) async throws -> Bool {
     var request = URLRequest(url: url)
     request.timeoutInterval = checkTimeout
-    let (bytes, response) = try await URLSession.shared.bytes(for: request)
+    let session = URLSession(configuration: consentProbeConfiguration())
+    defer { session.invalidateAndCancel() }
+    let (bytes, response) = try await session.bytes(for: request)
     if response.mimeType?.lowercased() == "text/html" { return true }
     var prefix = Data()
     for try await byte in bytes {

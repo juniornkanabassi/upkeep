@@ -198,6 +198,12 @@ final class DriverCoverageTest: XCTestCase {
     } catch { XCTAssertTrue(error.localizedDescription.contains("could not be read")) }
   }
 
+  func testConsentProbeHasTotalTransferDeadline() {
+    let configuration = SparkleUpdateCheckerOperation.consentProbeConfiguration()
+    XCTAssertEqual(configuration.timeoutIntervalForResource, SparkleUpdateCheckerOperation.checkTimeout)
+    XCTAssertEqual(configuration.timeoutIntervalForRequest, SparkleUpdateCheckerOperation.checkTimeout)
+  }
+
   func testHTMLConsentAndXMLFeedAreDistinguished() {
     let url = URL(string: "https://instagram.com/privacy/checks/")!
     XCTAssertTrue(SparkleUpdateCheckerOperation.isWebPage(data: Data(),
