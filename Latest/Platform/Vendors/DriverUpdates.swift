@@ -23,7 +23,9 @@ enum DriverUpdates {
         availabilityUnknown: update.availabilityUnknown)
     }
     // No known independent source. Do not invent a successful current-version check.
-    throw DriverSourceUnavailable(note: bundle.note ?? "No supported driver update source.")
+    return App.Update(app: bundle, remoteVersion: bundle.version, minimumOSVersion: nil,
+      source: .driver, date: nil, releaseNotes: nil,
+      updateAction: .external(label: bundle.note ?? "No supported update source") { _ in })
   }
 }
 

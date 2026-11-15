@@ -25,7 +25,7 @@ enum BlackmagicCatalogue {
       throw LatestError.updateInfoUnavailable
     }
     return Version(versionNumber: "\(major).\(minor).\(patch)",
-      buildNumber: (mac["build"] as? Int).map(String.init))
+      buildNumber: nil)
   }
 
   static func update(for bundle: App.Bundle) async throws -> App.Update? {

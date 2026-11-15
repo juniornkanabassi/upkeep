@@ -39,6 +39,14 @@ final class DriverCoverageTest: XCTestCase {
       id: "com.test.Camera.extension", version: "1.1")
     try bundle(root.appendingPathComponent("SystemExtensions/UUID/Camera.systemextension"),
       id: "com.test.Camera.extension", version: "1.1")
+    let activeURL = root.appendingPathComponent("SystemExtensions/UUID/Camera.systemextension")
+    try bundle(root.appendingPathComponent("SystemExtensions/OLD/Camera.systemextension"),
+      id: "com.test.Camera.extension", version: "0.9")
+    try PropertyListSerialization.data(fromPropertyList: ["extensions": [
+      ["state": "activated_enabled", "stagedBundleURL": ["relative": activeURL.absoluteString]],
+      ["state": "terminated_waiting_to_uninstall_on_reboot", "stagedBundleURL":
+        ["relative": root.appendingPathComponent("SystemExtensions/OLD/Camera.systemextension").absoluteString]],
+    ]], format: .xml, options: 0).write(to: root.appendingPathComponent("SystemExtensions/db.plist"))
     try bundle(root.appendingPathComponent("Extensions/Legacy.kext"), id: "com.test.Legacy", version: "2.0")
     try bundle(root.appendingPathComponent("Audio/Plug-Ins/HAL/Test.driver"), id: "com.test.Audio", version: "4.0")
     let rows = DriverDiscovery.collect(apps: [try XCTUnwrap(BundleCollector.collectBundle(at: appURL))], library: root)
@@ -141,6 +149,10 @@ final class DriverCoverageTest: XCTestCase {
   func testBlackmagicCatalogueParsesVersionAndRejectsMissingFields() throws {
     let version = try BlackmagicCatalogue.version(from: Data(#"{"mac":{"major":16,"minor":5,"releaseNum":0}}"#.utf8))
     XCTAssertEqual(version.versionNumber, "16.5.0")
+    let newer = try BlackmagicCatalogue.version(from:
+      Data(#"{"mac":{"major":22,"minor":0,"releaseNum":0,"build":3}}"#.utf8))
+    XCTAssertEqual(Version(versionNumber: "21.2.0", buildNumber: "21.2.0.0006")
+      .comparisonForUpdate(to: newer), .older)
     XCTAssertThrowsError(try BlackmagicCatalogue.version(from: Data(#"{"mac":{"major":16}}"#.utf8)))
   }
 
@@ -160,6 +172,19 @@ final class DriverCoverageTest: XCTestCase {
       XCTAssertEqual(app.capability, .unsupported)
       XCTAssertFalse(app.isActionable)
     }
+  }
+
+  @MainActor
+  func testUnsupportedDriversAndCompanionsDoNotPolluteSummary() async throws {
+    let driver = App.Bundle(version: Version(versionNumber: "1.0", buildNumber: nil),
+      name: "Legacy", bundleIdentifier: "com.test.Legacy", fileURL: URL(fileURLWithPath: "/tmp/Legacy.kext"),
+      source: .driver, kind: .driver, note: "Legacy kernel extension; no supported update source.")
+    let app = App(bundle: driver, update: .success(try await DriverUpdates.check(driver)), isIgnored: false)
+    XCTAssertNil(app.error)
+    XCTAssertEqual(app.capability, .unsupported)
+    XCTAssertEqual(app.updateStatus, .current)
+    XCTAssertEqual(UpdateStatusSummary(apps: [app]).couldNotCheck, 0)
+    XCTAssertTrue(app.routeShortDescription.contains("Legacy"))
   }
 
   func testHTMLConsentAndXMLFeedAreDistinguished() {

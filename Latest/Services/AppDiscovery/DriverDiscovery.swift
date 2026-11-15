@@ -9,7 +9,7 @@ enum DriverDiscovery {
   static func collect(apps: [App.Bundle], library: URL = URL(fileURLWithPath: "/Library"))
     -> [App.Bundle]
   {
-    let roots = ["Audio/Plug-Ins/HAL", "SystemExtensions", "Extensions"]
+    let roots = ["Audio/Plug-Ins/HAL", "Extensions"]
     var urls = Set<URL>()
     for root in roots {
       let enumerator = FileManager.default.enumerator(
@@ -20,6 +20,19 @@ enum DriverDiscovery {
           urls.insert(url)
           enumerator?.skipDescendants()
         }
+      }
+    }
+    let database = library.appendingPathComponent("SystemExtensions/db.plist")
+    if let data = try? Data(contentsOf: database),
+      let plist = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any],
+      let entries = plist["extensions"] as? [[String: Any]] {
+      for entry in entries where entry["state"] as? String == "activated_enabled" {
+        guard let staged = entry["stagedBundleURL"] as? [String: Any],
+          let relative = staged["relative"] as? String, let url = URL(string: relative),
+          url.isFileURL, url.standardizedFileURL.path.hasPrefix(
+            library.appendingPathComponent("SystemExtensions").standardizedFileURL.path + "/")
+        else { continue }
+        urls.insert(url)
       }
     }
     // Identify active copies by the matching extension shipped inside their host.
@@ -36,12 +49,15 @@ enum DriverDiscovery {
     return urls.sorted { $0.path < $1.path }.compactMap { url in
       guard let raw = read(at: url) else { return nil }
       let host = hosts[raw.bundleIdentifier]
-      let blackmagic = raw.bundleIdentifier.lowercased().contains("blackmagic")
-        || raw.name.lowercased().contains("blackmagic")
+      let blackmagic = [
+        "com.blackmagicdesign.audio.BlackmagicAudio", "com.blackmagic-design.BlackmagicIO.DExt",
+        "com.blackmagic-design.desktopvideo.Network.DExt",
+        "com.blackmagic-design.desktopvideo.BlackmagicCameraExtension",
+      ].contains(raw.bundleIdentifier)
       let isARK = raw.bundleIdentifier == "com.rogueamoeba.ARK.driver"
       let parent = blackmagic ? "Blackmagic Desktop Video" : host?.name
       let note = parent.map { "Updates with \($0)" }
-        ?? (isARK ? "Audio apps may briefly lose sound during installation."
+        ?? (isARK ? "A macOS administrator prompt is required. Audio apps may briefly lose sound during installation."
           : url.pathExtension == "kext" ? "Legacy kernel extension; no supported update source."
           : raw.bundleIdentifier.hasPrefix("com.apple.") ? "Updates with macOS" : "No update source")
       return App.Bundle(
@@ -67,8 +83,7 @@ enum DriverDiscovery {
     let version = Version(versionNumber: info["CFBundleShortVersionString"] as? String,
       buildNumber: info["CFBundleVersion"] as? String)
     guard !version.isEmpty else { return nil }
-    let vendor = info["CFBundleGetInfoString"] as? String
-      ?? (id.hasPrefix("com.rogueamoeba.") ? "Rogue Amoeba"
+    let vendor = (id.hasPrefix("com.rogueamoeba.") ? "Rogue Amoeba"
         : id.lowercased().contains("blackmagic") ? "Blackmagic Design"
         : id.hasPrefix("com.apple.") ? "Apple" : id.split(separator: ".").prefix(2).joined(separator: "."))
     return App.Bundle(version: version,

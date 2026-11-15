@@ -58,9 +58,6 @@ final class SparkleUpdateCheckerOperation: NSObject, @unchecked Sendable {
     guard let bundle = Bundle(path: app.fileURL.path) else {
       throw LatestError.updateInfoUnavailable
     }
-    if let url, try await Self.feedAnswersWithWebPage(url) {
-      throw DriverSourceUnavailable(note: "Feed answers with a web page (consent).")
-    }
     let timeoutTask = Task { [weak self] in
       try? await Task.sleep(nanoseconds: UInt64(Self.checkTimeout * 1_000_000_000))
       guard !Task.isCancelled else { return }
@@ -102,9 +99,6 @@ final class SparkleUpdateCheckerOperation: NSObject, @unchecked Sendable {
   }
 
   private static func feedAnswersWithWebPage(_ url: URL) async throws -> Bool {
-    // Edits redirects its appcast to Instagram's consent page. Keep other feeds on
-    // Sparkle's existing network path and avoid an extra request for every app.
-    guard url.host == "edits.instagram.com" else { return false }
     var request = URLRequest(url: url)
     request.timeoutInterval = checkTimeout
     let (bytes, response) = try await URLSession.shared.bytes(for: request)
@@ -130,7 +124,15 @@ final class SparkleUpdateCheckerOperation: NSObject, @unchecked Sendable {
   }
 
   private func complete(_ result: Result<App.Update, Error>) {
-    Task { await resultGate.resume(with: result) }
+    Task {
+      if case .failure(let error) = result,
+        (error as NSError).domain == SUSparkleErrorDomain,
+        (error as NSError).code == SUError.appcastParseError.rawValue,
+        let url, (try? await Self.feedAnswersWithWebPage(url)) == true {
+        await resultGate.resume(with: .failure(
+          DriverSourceUnavailable(note: "Feed answers with a web page (consent).")))
+      } else { await resultGate.resume(with: result) }
+    }
   }
 
   private func finish(with appcastItem: SUAppcastItem) {
