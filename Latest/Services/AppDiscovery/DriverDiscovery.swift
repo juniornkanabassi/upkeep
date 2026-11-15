@@ -57,7 +57,8 @@ enum DriverDiscovery {
       let isARK = raw.bundleIdentifier == "com.rogueamoeba.ARK.driver"
       let parent = blackmagic ? "Blackmagic Desktop Video" : host?.name
       let note = parent.map { "Updates with \($0)" }
-        ?? (isARK ? "A macOS administrator prompt is required. Audio apps may briefly lose sound during installation."
+        ?? (isARK ? (ark == nil ? "Install or open a Rogue Amoeba app to update ARK."
+          : "A macOS administrator prompt is required. Audio apps may briefly lose sound during installation.")
           : url.pathExtension == "kext" ? "Legacy kernel extension; no supported update source."
           : raw.bundleIdentifier.hasPrefix("com.apple.") ? "Updates with macOS" : "No update source")
       return App.Bundle(

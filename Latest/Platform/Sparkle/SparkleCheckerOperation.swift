@@ -47,6 +47,7 @@ final class SparkleUpdateCheckerOperation: NSObject, @unchecked Sendable {
   private let url: URL?
   private let resultGate = SparkleCheckResultGate()
   private let cancellationState = Mutex(false)
+  private let probingConsent = Mutex(false)
   @MainActor private var updater: SPUUpdater?
 
   init(with app: App.Bundle) {
@@ -61,6 +62,7 @@ final class SparkleUpdateCheckerOperation: NSObject, @unchecked Sendable {
     let timeoutTask = Task { [weak self] in
       try? await Task.sleep(nanoseconds: UInt64(Self.checkTimeout * 1_000_000_000))
       guard !Task.isCancelled else { return }
+      guard self?.probingConsent.withLock({ $0 }) != true else { return }
       self?.complete(.failure(URLError(.timedOut)))
     }
     defer {
@@ -124,6 +126,12 @@ final class SparkleUpdateCheckerOperation: NSObject, @unchecked Sendable {
   }
 
   private func complete(_ result: Result<App.Update, Error>) {
+    let isParseFailure: Bool
+    if case .failure(let error) = result {
+      isParseFailure = (error as NSError).domain == SUSparkleErrorDomain
+        && (error as NSError).code == SUError.appcastParseError.rawValue
+    } else { isParseFailure = false }
+    if isParseFailure { probingConsent.withLock { $0 = true } }
     Task {
       if case .failure(let error) = result,
         (error as NSError).domain == SUSparkleErrorDomain,

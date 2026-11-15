@@ -187,6 +187,17 @@ final class DriverCoverageTest: XCTestCase {
     XCTAssertTrue(app.routeShortDescription.contains("Legacy"))
   }
 
+  func testUnreadableARKInstallerFailsCheck() async throws {
+    let root = try root()
+    let driver = App.Bundle(version: Version(versionNumber: "1.0", buildNumber: nil),
+      name: "ARK", bundleIdentifier: "com.rogueamoeba.ARK.driver", fileURL: root.appendingPathComponent("ARK.driver"),
+      source: .driver, kind: .driver, companionToolURL: root.appendingPathComponent("missing"))
+    do {
+      _ = try await DriverUpdates.check(driver)
+      XCTFail("Unreadable installer must not claim current")
+    } catch { XCTAssertTrue(error.localizedDescription.contains("could not be read")) }
+  }
+
   func testHTMLConsentAndXMLFeedAreDistinguished() {
     let url = URL(string: "https://instagram.com/privacy/checks/")!
     XCTAssertTrue(SparkleUpdateCheckerOperation.isWebPage(data: Data(),

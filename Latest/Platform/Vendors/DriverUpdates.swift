@@ -4,8 +4,10 @@ import Foundation
 
 enum DriverUpdates {
   static func check(_ bundle: App.Bundle) async throws -> App.Update {
-    if bundle.bundleIdentifier == "com.rogueamoeba.ARK.driver",
-      let tool = bundle.companionToolURL, let number = DriverDiscovery.arkVersion(at: tool) {
+    if bundle.bundleIdentifier == "com.rogueamoeba.ARK.driver", let tool = bundle.companionToolURL {
+      guard let number = DriverDiscovery.arkVersion(at: tool) else {
+        throw DriverSourceUnavailable(note: "ARK's installer could not be read. Check again.")
+      }
       let version = Version(versionNumber: number, buildNumber: nil)
       return App.Update(app: bundle, remoteVersion: version, minimumOSVersion: nil,
         source: .driver, date: nil, releaseNotes: nil,
@@ -22,7 +24,7 @@ enum DriverUpdates {
         updateAction: .external(label: "Updates with \(host.name)") { _ in },
         availabilityUnknown: update.availabilityUnknown)
     }
-    // No known independent source. Do not invent a successful current-version check.
+    // Known unsupported driver: expose the installed version without an update action.
     return App.Update(app: bundle, remoteVersion: bundle.version, minimumOSVersion: nil,
       source: .driver, date: nil, releaseNotes: nil,
       updateAction: .external(label: bundle.note ?? "No supported update source") { _ in })
