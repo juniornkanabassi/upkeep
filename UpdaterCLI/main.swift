@@ -398,7 +398,8 @@ if wireCommand == "uninstall" {
 }
 let request = ControlRequest(
   id: requestID ?? UUID().uuidString, command: wireCommand, args: args,
-  caller: caller ?? "cli-\(getppid())")
+  // Stable across runs: an agent previews and confirms from separate shells.
+  caller: caller ?? "cli")
 let timeout = timeoutOverride ?? command.timeout
 
 /// Whether this helper's own app (or, outside a bundle, any Updater) is running.

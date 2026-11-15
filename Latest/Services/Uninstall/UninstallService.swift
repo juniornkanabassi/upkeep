@@ -67,7 +67,7 @@ final class UninstallService {
     token: String, app: URL?, withData: Bool?, caller: String, excluding: Set<String> = []
   ) async throws -> [String: JSONValue] {
     guard let ticket = tickets[token], ticket.caller == caller, ticket.expires > now() else {
-      throw ControlError("invalid_token", "The preview token is missing, expired, consumed or belongs to another caller.")
+      throw ControlError("invalid_token", "The preview token is missing, expired, already used or belongs to another caller. Preview again with the same --caller you confirm with.")
     }
     guard app == nil || app?.path == ticket.plan.appPath,
       withData == nil || withData == ticket.plan.withData else {
