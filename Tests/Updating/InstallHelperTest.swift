@@ -2,7 +2,7 @@
 
 import XCTest
 
-@testable import Latest
+@testable import Upkeep
 
 final class InstallHelperTest: XCTestCase {
   func testHelperReplyGateResumesContinuationOnlyOnce() async throws {
@@ -11,7 +11,7 @@ final class InstallHelperTest: XCTestCase {
       (continuation: CheckedContinuation<URL, Error>) in
       let replyGate = HelperReplyGate(continuation: continuation)
       replyGate.resume(with: .success(expected))
-      replyGate.resume(with: .failure(LatestError.installHelperCommunicationFailed))
+      replyGate.resume(with: .failure(UpkeepError.installHelperCommunicationFailed))
     }
     XCTAssertEqual(installed, expected)
   }
@@ -158,6 +158,17 @@ final class InstallHelperTest: XCTestCase {
     for key in ["BundleProgram", "MachServices", "SpawnConstraint"] {
       XCTAssertEqual(current[key] as? NSObject, legacy[key] as? NSObject, key)
     }
+  }
+
+  func testRenamedHelperKeepsOldPlistsOnlyForUnregistration() throws {
+    for label in ["com.juniornkanabassi.Updater.helper", "com.juniornkanabassi.Updater.helper.daemon"] {
+      let url = Bundle.main.bundleURL.appendingPathComponent("Contents/Library/LaunchDaemons/\(label).plist")
+      let plist = try XCTUnwrap(NSDictionary(contentsOf: url))
+      XCTAssertEqual(plist["Label"] as? String, label)
+    }
+    XCTAssertEqual(UpdateInstallerIdentity.service, "com.juniornkanabassi.Upkeep.helper")
+    XCTAssertTrue(UpdateInstallerIdentity.appRequirement.contains("com.juniornkanabassi.Upkeep"))
+    XCTAssertTrue(UpdateInstallerIdentity.helperRequirement.contains("com.juniornkanabassi.Upkeep.helper"))
   }
 
   func testFailedPrerequisiteDoesNotContactOrRefreshDaemon() async {

@@ -2,7 +2,7 @@
 
 import Foundation
 import XCTest
-@testable import Latest
+@testable import Upkeep
 
 final class DriverCoverageTest: XCTestCase {
   private func root() throws -> URL {

@@ -5,7 +5,7 @@ import SwiftUI
 import WebKit
 import XCTest
 
-@testable import Latest
+@testable import Upkeep
 
 final class ToolbarInteractionTest: XCTestCase {
   @MainActor
@@ -24,7 +24,7 @@ final class ToolbarInteractionTest: XCTestCase {
         settings: try isolatedAppListSettings(for: self))
       let service = environment.updateCheckingService
       let coordinator = UpdateCheckCoordinator()
-      let window = try await makeLatestTestWindow(
+      let window = try await makeUpkeepTestWindow(
         environment: environment, dark: dark, testCase: self)
       defer { window.close() }
       let sidebar = try SidebarInputFixture(window: window, model: environment.updatesListViewModel)
@@ -102,7 +102,7 @@ final class ToolbarInteractionTest: XCTestCase {
     try requireUITests()
     let environment = AppEnvironment.localUATFixture(
       settings: try isolatedAppListSettings(for: self))
-    let window = try await makeLatestTestWindow(
+    let window = try await makeUpkeepTestWindow(
       environment: environment, dark: true, testCase: self)
     let host = try XCTUnwrap(window.contentView)
     defer { window.close() }

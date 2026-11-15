@@ -4,8 +4,8 @@ import Foundation
 import Synchronization
 import XCTest
 
-#if LATEST_HOSTED_TESTS
-  @testable import Latest
+#if UPKEEP_HOSTED_TESTS
+  @testable import Upkeep
 #endif
 
 final class UpdateHistoryStoreTest: XCTestCase {
@@ -23,7 +23,7 @@ final class UpdateHistoryStoreTest: XCTestCase {
     let directory = FileManager.default.temporaryDirectory
       .appendingPathComponent(UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: directory) }
-    let file = directory.appendingPathComponent("Updater/history.jsonl")
+    let file = directory.appendingPathComponent("Upkeep/history.jsonl")
     let app = bundle("/tmp/Fixture.app")
     let other = bundle("/tmp/Other/Fixture.app")
 

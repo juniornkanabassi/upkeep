@@ -4,7 +4,7 @@ import AppKit
 import SwiftUI
 import XCTest
 
-@testable import Latest
+@testable import Upkeep
 
 final class ApplicationAppearanceTest: XCTestCase {
   func testApplicationAppearanceResolvesStoredPreference() {

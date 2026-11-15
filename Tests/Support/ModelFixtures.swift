@@ -3,8 +3,8 @@
 import Foundation
 import XCTest
 
-#if LATEST_HOSTED_TESTS
-  @testable import Latest
+#if UPKEEP_HOSTED_TESTS
+  @testable import Upkeep
 #endif
 
 // Foundation leaves an empty plist behind even after removing a persistent domain.
@@ -13,7 +13,7 @@ extension UserDefaults {
     forName name: String, file: StaticString = #filePath, line: UInt = #line
   ) {
     precondition(UUID(uuidString: String(name.split(separator: ".").last ?? "")) != nil)
-    if let path = ProcessInfo.processInfo.environment["UPDATER_TEST_DEFAULTS_MANIFEST"] {
+    if let path = ProcessInfo.processInfo.environment["UPKEEP_TEST_DEFAULTS_MANIFEST"] {
       do {
         let handle = try FileHandle(forWritingTo: URL(fileURLWithPath: path))
         defer { try? handle.close() }
@@ -39,7 +39,7 @@ extension UserDefaults {
 
 @MainActor
 func isolatedAppListSettings(for testCase: XCTestCase) throws -> AppListSettings {
-  let suiteName = "LatestTests.AppListSettings.\(UUID().uuidString)"
+  let suiteName = "UpkeepTests.AppListSettings.\(UUID().uuidString)"
   let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
   // Register before test work, so the runner also cleans up after a crashed host.
   defaults.removeTestPersistentDomain(forName: suiteName)
@@ -84,7 +84,7 @@ func makeTestApp(
   return App(bundle: bundle, update: .success(update), isIgnored: false)
 }
 
-#if LATEST_HOSTED_TESTS
+#if UPKEEP_HOSTED_TESTS
   @MainActor
   func setTestManualAppStorePreference(_ value: Bool) {
     var domain = UserDefaults.standard.volatileDomain(forName: UserDefaults.argumentDomain)

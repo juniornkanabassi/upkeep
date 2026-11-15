@@ -1,9 +1,9 @@
 # Apple swift-format owns formatting. These rules catch correctness mistakes
 # without duplicating whitespace, naming, or length preferences.
 included:
-  - Latest
+  - Upkeep
   - UpdateInstaller
-  - UpdaterCLI
+  - UpkeepCLI
   - Tests
   - script
 only_rules:

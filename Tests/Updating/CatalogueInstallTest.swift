@@ -4,7 +4,7 @@ import CryptoKit
 import Synchronization
 import XCTest
 
-@testable import Latest
+@testable import Upkeep
 
 /// Round 5b: catalogue direct downloads, end to end against disposable fixture apps served from
 /// 127.0.0.1 (zip, disk image, tar). Nothing here touches a real app or /Applications.
@@ -247,7 +247,7 @@ final class CatalogueInstallTest: XCTestCase {
     XCTAssertEqual(try FixtureApp.digest(scene.installed), before, "no replacement happened")
   }
 
-  /// The job stages in Updater's backup folder. Where the walk can see that folder (a
+  /// The job stages in Upkeep's backup folder. Where the walk can see that folder (a
   /// watched folder on another volume keeps it beside the app), the recheck excludes exactly
   /// this job's staging folder, so the install still goes ahead.
   func testOwnStagedCandidateIsNotASecondCopy() async throws {
@@ -311,7 +311,8 @@ final class CatalogueInstallTest: XCTestCase {
   /// A root-owned bundle (Shottr was) is an administrator matter, not App Management.
   func testBundlesOwnedByAnotherAccountAreAdministratorMatters() throws {
     XCTAssertTrue(
-      UpdateQueue.isOwnedByAnotherAccount(URL(fileURLWithPath: "/System/Applications/Calculator.app")))
+      UpdateQueue.isOwnedByAnotherAccount(
+        URL(fileURLWithPath: "/System/Applications/Calculator.app")))
     XCTAssertFalse(UpdateQueue.isOwnedByAnotherAccount(FileManager.default.temporaryDirectory))
   }
 
@@ -523,9 +524,9 @@ final class CatalogueInstallTest: XCTestCase {
     let catalogue = """
       [
         {"token": "fixture", "version": "1.1", "artifacts": [{"app": ["Fixture.app"]},
-          {"uninstall": [{"quit": "com.juniornkanabassi.updater-fixture"}]}], "depends_on": {}},
+          {"uninstall": [{"quit": "com.juniornkanabassi.upkeep-fixture"}]}], "depends_on": {}},
         {"token": "fixture-suite", "version": "3", "artifacts": [{"pkg": ["Suite.pkg"]},
-          {"uninstall": [{"quit": "com.juniornkanabassi.updater-fixture"}]}], "depends_on": {}}
+          {"uninstall": [{"quit": "com.juniornkanabassi.upkeep-fixture"}]}], "depends_on": {}}
       ]
       """
     let data = Data(catalogue.utf8)
@@ -619,10 +620,10 @@ final class CatalogueInstallTest: XCTestCase {
     let catalogue = """
       [
         {"token": "fixture", "version": "1.2", "url": "https://example.com/stable.zip",
-         "artifacts": [{"app": ["Fixture.app"]}, {"uninstall": [{"quit": "com.juniornkanabassi.updater-fixture"}]}],
+         "artifacts": [{"app": ["Fixture.app"]}, {"uninstall": [{"quit": "com.juniornkanabassi.upkeep-fixture"}]}],
          "depends_on": {}},
         {"token": "fixture@beta", "version": "1.5", "url": "https://example.com/beta.zip",
-         "artifacts": [{"app": ["Fixture.app"]}, {"uninstall": [{"quit": "com.juniornkanabassi.updater-fixture"}]}],
+         "artifacts": [{"app": ["Fixture.app"]}, {"uninstall": [{"quit": "com.juniornkanabassi.upkeep-fixture"}]}],
          "depends_on": {}}
       ]
       """
@@ -681,8 +682,8 @@ final class CatalogueInstallTest: XCTestCase {
   /// the real catalogue, fresh per-cask entries (metadata only) and the folder walk; it never
   /// downloads a payload or changes anything. Payload and trust rules are judged at install.
   func testLiveCatalogueEligibilityReport() async throws {
-    guard ProcessInfo.processInfo.environment["UPDATER_LIVE_CATALOGUE_REPORT"] == "1" else {
-      throw XCTSkip("Set UPDATER_LIVE_CATALOGUE_REPORT=1 for the read-only catalogue report.")
+    guard ProcessInfo.processInfo.environment["UPKEEP_LIVE_CATALOGUE_REPORT"] == "1" else {
+      throw XCTSkip("Set UPKEEP_LIVE_CATALOGUE_REPORT=1 for the read-only catalogue report.")
     }
     let repository = UpdateRepository.newRepository()
     let check = CatalogueInstallCheck.live

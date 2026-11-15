@@ -4,7 +4,7 @@ The opt-in UI suite compares ten reviewed PNGs on macOS 26. The seven
 `main-*` images are historical references whose compared regions contain only
 production detail-header/body content (including RTL, empty and error states).
 Their mock sidebar pixels are excluded. The current detail fixture leaves that
-area blank; sidebar tests open LatestMainWindowScene and inspect its real rows.
+area blank; sidebar tests open UpkeepMainWindowScene and inspect its real rows.
 Three references cover production locations. Four update-action and toolbar
 shelf PNGs are retained as historical references outside the executed suite.
 All retained PNGs preserve their reviewed pixels.
@@ -27,7 +27,7 @@ regression also verifies that learning the app count preserves the empty bar,
 checking advances it, and completion removes it.
 
 For an intentional visual change, compare the original and candidate on the
-same system, then run `LATEST_RECORD_VISUAL_BASELINES=1 ./script/test.sh --ui` on
+same system, then run `UPKEEP_RECORD_VISUAL_BASELINES=1 ./script/test.sh --ui` on
 macOS 26. Review `/tmp/latest-visual-candidates` before copying approved images
 here. Tests keep comparing against existing references until they are updated.
 

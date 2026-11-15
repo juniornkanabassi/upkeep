@@ -4,7 +4,7 @@ import AppKit
 import SwiftUI
 import XCTest
 
-@testable import Latest
+@testable import Upkeep
 
 /// Exercises the shipping scene through real input, without exposing a SwiftUI
 /// coordinator or replacing its navigation with a test implementation.
@@ -16,7 +16,7 @@ struct SidebarInputFixture {
   /// The production scene uses the shared SwiftUI renderer. Fixtures
   /// supply data and services only; they never assemble or restyle a row.
   static func make(
-    apps: [Latest.App], selected: Latest.App? = nil, dark: Bool = false,
+    apps: [Upkeep.App], selected: Upkeep.App? = nil, dark: Bool = false,
     searchFocusController: SearchFocusController = SearchFocusController(),
     updating: any AppUpdating = AppUpdateService.shared, testCase: XCTestCase
   ) async throws -> SidebarInputFixture {
@@ -28,7 +28,7 @@ struct SidebarInputFixture {
     let environment = AppEnvironment(
       searchFocusController: searchFocusController, settings: settings,
       updating: updating, updatesListViewModel: model)
-    let window = try await makeLatestTestWindow(
+    let window = try await makeUpkeepTestWindow(
       environment: environment, dark: dark, testCase: testCase)
     let fixture = try SidebarInputFixture(window: window, model: model)
     window.layoutIfNeeded()
@@ -36,7 +36,7 @@ struct SidebarInputFixture {
     return fixture
   }
 
-  func contentFrame(for app: Latest.App) throws -> CGRect {
+  func contentFrame(for app: Upkeep.App) throws -> CGRect {
     try frame(for: "updates.app.\(app.identifier)")
   }
 
@@ -49,7 +49,7 @@ struct SidebarInputFixture {
     return window.convertFromScreen(row.accessibilityFrame())
   }
 
-  func captureRow(for app: Latest.App) async throws -> NSBitmapImageRep {
+  func captureRow(for app: Upkeep.App) async throws -> NSBitmapImageRep {
     let bitmap = try await settledWindowBitmap(window)
     let frame = try contentFrame(for: app)
     let crop = CGRect(
@@ -58,7 +58,7 @@ struct SidebarInputFixture {
     return NSBitmapImageRep(cgImage: try XCTUnwrap(bitmap.cgImage?.cropping(to: crop)))
   }
 
-  func clickProgress(for app: Latest.App) async throws {
+  func clickProgress(for app: Upkeep.App) async throws {
     let frame = try contentFrame(for: app)
     let control = try XCTUnwrap(
       accessibilityElements().first {

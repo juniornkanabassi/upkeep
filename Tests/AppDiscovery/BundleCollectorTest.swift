@@ -1,6 +1,6 @@
 //
 //  BundleCollectorTest.swift
-//  Latest Tests
+//  Upkeep Tests
 //
 //  Structural split from the original implementation.
 //
@@ -10,7 +10,7 @@
 import Synchronization
 import XCTest
 
-@testable import Latest
+@testable import Upkeep
 
 final class BundleCollectorTest: XCTestCase {
   func testRemovingAnObservedDirectoryPublishesTheRemainingApps() async throws {

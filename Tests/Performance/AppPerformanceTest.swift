@@ -1,6 +1,6 @@
 //
 //  AppPerformanceTest.swift
-//  Latest Tests
+//  Upkeep Tests
 //
 //  Created by ertyoii on 19.07.26.
 //  Copyright © 2026 Max Langer. All rights reserved.
@@ -15,7 +15,7 @@ import SwiftUI
 import WebKit
 import XCTest
 
-@testable import Latest
+@testable import Upkeep
 
 @MainActor
 final class AppPerformanceTest: XCTestCase {
@@ -28,11 +28,11 @@ final class AppPerformanceTest: XCTestCase {
     for payloadBytes in [1_024, 1_048_576] {
       let notes = String(repeating: "x", count: payloadBytes)
       let apps = makeApps(count: 120).map { app in
-        let update = Latest.App.Update(
+        let update = Upkeep.App.Update(
           app: app.bundle, remoteVersion: Version(versionNumber: "2.0", buildNumber: nil),
           minimumOSVersion: nil, source: .appStore, date: nil,
           releaseNotes: .html(string: notes), updateAction: .builtIn { _ in })
-        return Latest.App(bundle: app.bundle, update: .success(update), isIgnored: false)
+        return Upkeep.App(bundle: app.bundle, update: .success(update), isIgnored: false)
       }
       let model = ReleaseNotesDetailViewModel(
         releaseNotesProvider: ImmediateReleaseNotesProvider(
@@ -90,7 +90,7 @@ final class AppPerformanceTest: XCTestCase {
     defer { try? FileManager.default.removeItem(at: scanRoot) }
     benchmark("scan_to_stable_snapshot_fixture", iterations: 30) {
       let bundles = BundleCollector.collectBundles(at: scanRoot)
-      let apps = bundles.map { Latest.App(bundle: $0, update: nil, isIgnored: false) }
+      let apps = bundles.map { Upkeep.App(bundle: $0, update: nil, isIgnored: false) }
       return AppListSnapshot(withApps: apps, filterQuery: nil, settings: settings).entries.count
     }
 
@@ -148,7 +148,7 @@ final class AppPerformanceTest: XCTestCase {
     let environment = AppEnvironment(
       updatesListViewModel: UpdatesListViewModel(snapshot: resizeSnapshot, settings: settings)
     )
-    let splitHost = NSHostingView(rootView: LatestRootView(environment: environment))
+    let splitHost = NSHostingView(rootView: UpkeepRootView(environment: environment))
     splitHost.frame = NSRect(x: 0, y: 0, width: 1_000, height: 640)
     let splitWindow = attachToWindow(splitHost)
     defer { splitWindow.close() }
@@ -363,16 +363,16 @@ final class AppPerformanceTest: XCTestCase {
     return window
   }
 
-  private func makeApps(count: Int) -> [Latest.App] {
+  private func makeApps(count: Int) -> [Upkeep.App] {
     (0..<count).map { index in
-      let bundle = Latest.App.Bundle(
+      let bundle = Upkeep.App.Bundle(
         version: Version(versionNumber: "1.\(index)", buildNumber: nil),
         name: "Benchmark App \(index)",
         bundleIdentifier: "com.example.app-performance.\(index)",
         fileURL: URL(fileURLWithPath: "/Applications/App-\(index).app", isDirectory: true),
         source: .appStore
       )
-      let update = Latest.App.Update(
+      let update = Upkeep.App.Update(
         app: bundle,
         remoteVersion: Version(versionNumber: "2.\(index)", buildNumber: nil),
         minimumOSVersion: nil,
@@ -382,7 +382,7 @@ final class AppPerformanceTest: XCTestCase {
           string: "<h2>Version 2.\(index)</h2><p>App fixture notes for app \(index).</p>"),
         updateAction: .builtIn { _ in }
       )
-      return Latest.App(bundle: bundle, update: .success(update), isIgnored: index % 17 == 0)
+      return Upkeep.App(bundle: bundle, update: .success(update), isIgnored: index % 17 == 0)
     }
   }
 
@@ -394,7 +394,7 @@ final class AppPerformanceTest: XCTestCase {
 
   private func makeSyntheticAppRoot(count: Int) throws -> URL {
     let root = FileManager.default.temporaryDirectory
-      .appendingPathComponent("LatestAppBenchmark-\(UUID().uuidString)", isDirectory: true)
+      .appendingPathComponent("UpkeepAppBenchmark-\(UUID().uuidString)", isDirectory: true)
     for index in 0..<count {
       let contents =
         root
@@ -424,7 +424,7 @@ private final class ImmediateReleaseNotesProvider: ReleaseNotesProviding {
   }
 
   func releaseNotes(
-    for app: Latest.App,
+    for app: Upkeep.App,
     with completion: @escaping ReleaseNotesProvider.Completion
   ) {
     completion(.success(text))

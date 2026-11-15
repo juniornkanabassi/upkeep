@@ -1,6 +1,6 @@
 //
 //  AppStoreCheckerOperationTest.swift
-//  Latest Tests
+//  Upkeep Tests
 //
 //  Created by ertyoii on 12.05.26.
 //  Copyright © 2026 Max Langer. All rights reserved.
@@ -13,7 +13,7 @@ import StoreFoundation
 import Synchronization
 import XCTest
 
-@testable import Latest
+@testable import Upkeep
 
 class AppStoreCheckerOperationTest: XCTestCase {
   @MainActor
@@ -351,7 +351,7 @@ class AppStoreCheckerOperationTest: XCTestCase {
     let userCancelled = AppStoreDownloadResult(
       failed: true, cancelled: true, error: error, wasCancelled: true)
     guard case .failed(let failure) = userCancelled else {
-      return XCTFail("Cancelling in Latest must prevent installation")
+      return XCTFail("Cancelling in Upkeep must prevent installation")
     }
     XCTAssertTrue(failure is CancellationError)
   }

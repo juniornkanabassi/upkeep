@@ -80,13 +80,13 @@ exit 1
         self.assertEqual(result.returncode, 0, result.stderr)
         calls = [call.splitlines() for call in self.build_arguments.read_text().split("__CALL__\n")[1:]]
         self.assertEqual([call[call.index("-scheme") + 1] for call in calls],
-                         ["Updater", "Latest Unit Tests"])
+                         ["Upkeep", "Upkeep Unit Tests"])
         for index, arguments in enumerate(calls):
             self.assertIn("clean", arguments)
             self.assertIn("build-for-testing", arguments)
             self.assertNotIn("test", arguments)
             self.assertIn("CODE_SIGNING_ALLOWED=NO", arguments)
-            self.assertIn("OTHER_SWIFT_FLAGS=$(inherited) -DLATEST_RELEASE_NOTES_AUDIT", arguments)
+            self.assertIn("OTHER_SWIFT_FLAGS=$(inherited) -DUPKEEP_RELEASE_NOTES_AUDIT", arguments)
             product_root = "LintDerivedData" if index == 0 else "LintUnitDerivedData"
             self.assertIn(str(self.root / "build" / product_root), arguments)
         analyzer_arguments = self.calls.read_text().splitlines()

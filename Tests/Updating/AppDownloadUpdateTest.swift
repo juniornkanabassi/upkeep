@@ -2,11 +2,11 @@ import Network
 import Synchronization
 import XCTest
 
-@testable import Latest
+@testable import Upkeep
 
 final class AppDownloadUpdateTest: XCTestCase {
   /// The fixed six-cask table is gone (Round 5b); Discord stays on its native updater.
-  func testCatalogueInstallsLeaveDiscordToItsNativeUpdater() {
+  func testCatalogueInstallsLeaveDiscordToItsNativeUpkeep() {
     for identifier in ["com.hnc.Discord", "com.hnc.DiscordPTB", "com.hnc.DiscordCanary"] {
       XCTAssertThrowsError(
         try CatalogueInstall.token(for: catalogueBundle(identifier), candidates: ["discord"]))
@@ -127,8 +127,8 @@ final class AppDownloadUpdateTest: XCTestCase {
 
   /// Opt-in integration check against downloaded vendor artifacts; never installs them.
   func testDownloadedVendorArtifactsMatchTheirInstalledSigningIdentity() async throws {
-    guard let path = ProcessInfo.processInfo.environment["LATEST_VENDOR_ARTIFACTS"] else {
-      throw XCTSkip("Set LATEST_VENDOR_ARTIFACTS to a prepared vendor-validation directory.")
+    guard let path = ProcessInfo.processInfo.environment["UPKEEP_VENDOR_ARTIFACTS"] else {
+      throw XCTSkip("Set UPKEEP_VENDOR_ARTIFACTS to a prepared vendor-validation directory.")
     }
     try await Task.detached {
       let directory = URL(fileURLWithPath: path)
@@ -184,7 +184,7 @@ final class AppDownloadUpdateTest: XCTestCase {
   }
 
   /// Sol R4 (fourth pass): Obsidian's payload is shared by every installed copy, so its
-  /// update is always handed to Obsidian's own updater, never installed by Updater.
+  /// update is always handed to Obsidian's own updater, never installed by Upkeep.
   func testObsidianIsAlwaysHandedOff() throws {
     let root = try temporaryDirectory()
     let app = try FixtureApp.make(
@@ -288,7 +288,7 @@ final class AppDownloadUpdateTest: XCTestCase {
       }
       operation.completionBlock = { done.fulfill() }
       let observer = NotificationCenter.default.addObserver(
-        forName: .latestUpdateOperationDidFinish, object: operation, queue: nil
+        forName: .upkeepUpdateOperationDidFinish, object: operation, queue: nil
       ) { _ in notices.withLock { $0 += 1 } }
       defer { NotificationCenter.default.removeObserver(observer) }
       let queue = UpdateQueue()

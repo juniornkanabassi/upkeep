@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PROJECT="Latest.xcodeproj"
-SCHEME="Updater"
+PROJECT="Upkeep.xcodeproj"
+SCHEME="Upkeep"
 CONFIGURATION="Debug"
 
 RUN_INSTALLED_AUDIT=false
@@ -56,7 +56,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BUILD_DIR="$ROOT_DIR/build"
 DERIVED_DATA="$BUILD_DIR/DerivedData"
 MODULE_CACHE="$BUILD_DIR/ModuleCache"
-RESULT_BUNDLE="$BUILD_DIR/Latest-ReleaseNotes-Audit-$(date +%Y%m%d-%H%M%S).xcresult"
+RESULT_BUNDLE="$BUILD_DIR/Upkeep-ReleaseNotes-Audit-$(date +%Y%m%d-%H%M%S).xcresult"
 AUDIT_REPORT="$BUILD_DIR/release-notes-audit.txt"
 
 mkdir -p "$BUILD_DIR" "$MODULE_CACHE"
@@ -71,29 +71,29 @@ echo "- Notion-style website chrome is rejected instead of rendered"
 echo "- Thunder-style binary/mojibake payloads and downloadable URLs are rejected"
 echo "- CodexBar: markdown headings and bullets still render cleanly"
 if [[ "$RUN_INSTALLED_AUDIT" == true ]]; then
-  echo "- Installed-app audit: every discoverable app is checked through Updater's update and release-note pipeline"
+  echo "- Installed-app audit: every discoverable app is checked through Upkeep's update and release-note pipeline"
 else
   echo "- Installed-app audit: skipped (pass --installed to opt in)"
 fi
 
 only_testing=(
-  "Latest Tests/ReleaseNotesMarkupTest"
-  "Latest Tests/ReleaseNotesCatalogTest"
-  "Latest Tests/ReleaseNotesProviderTest"
-  "Latest Tests/ReleaseNotesPipelineTest"
+  "Upkeep Tests/ReleaseNotesMarkupTest"
+  "Upkeep Tests/ReleaseNotesCatalogTest"
+  "Upkeep Tests/ReleaseNotesProviderTest"
+  "Upkeep Tests/ReleaseNotesPipelineTest"
 )
 
 swift_flags=""
 if [[ -n "$LIVE_CASK_CATALOG" ]]; then
-  only_testing+=("Latest Tests/ReleaseNotesAuditTest/testCatalogReleaseNotesAudit")
-  swift_flags="-DLATEST_RELEASE_NOTES_AUDIT"
-  export TEST_RUNNER_LATEST_RELEASE_NOTES_CASK_CATALOG="$LIVE_CASK_CATALOG"
-  export TEST_RUNNER_LATEST_RELEASE_NOTES_CATALOG_REPORT="$BUILD_DIR/release-notes-catalog-audit.json"
+  only_testing+=("Upkeep Tests/ReleaseNotesAuditTest/testCatalogReleaseNotesAudit")
+  swift_flags="-DUPKEEP_RELEASE_NOTES_AUDIT"
+  export TEST_RUNNER_UPKEEP_RELEASE_NOTES_CASK_CATALOG="$LIVE_CASK_CATALOG"
+  export TEST_RUNNER_UPKEEP_RELEASE_NOTES_CATALOG_REPORT="$BUILD_DIR/release-notes-catalog-audit.json"
 fi
 if [[ "$RUN_INSTALLED_AUDIT" == true ]]; then
-  only_testing+=("Latest Tests/ReleaseNotesAuditTest/testInstalledApplicationReleaseNotesAudit")
-  swift_flags="-DLATEST_RELEASE_NOTES_AUDIT"
-  export TEST_RUNNER_LATEST_RELEASE_NOTES_AUDIT_REPORT="$AUDIT_REPORT"
+  only_testing+=("Upkeep Tests/ReleaseNotesAuditTest/testInstalledApplicationReleaseNotesAudit")
+  swift_flags="-DUPKEEP_RELEASE_NOTES_AUDIT"
+  export TEST_RUNNER_UPKEEP_RELEASE_NOTES_AUDIT_REPORT="$AUDIT_REPORT"
 fi
 
 xcode_args=(

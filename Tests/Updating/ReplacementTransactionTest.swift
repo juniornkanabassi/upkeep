@@ -3,7 +3,7 @@
 import Synchronization
 import XCTest
 
-@testable import Latest
+@testable import Upkeep
 
 final class ReplacementTransactionTest: XCTestCase {
   /// Failure injection after the swap restores the original byte-for-byte and leaves no backup.

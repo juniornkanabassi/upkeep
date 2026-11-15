@@ -3,7 +3,7 @@
 import Synchronization
 import XCTest
 
-@testable import Latest
+@testable import Upkeep
 
 /// The scheduler is `UpdateQueue`: per-URL dedup, per-tool locks, outcomes read from disk.
 final class UpdateSchedulerTest: XCTestCase {
@@ -188,7 +188,7 @@ final class UpdateSchedulerTest: XCTestCase {
     let notices = Mutex(0)
     let job = ScriptedOperation(url: app) { throw ReplacementError.verificationFailed("x") }
     let observer = NotificationCenter.default.addObserver(
-      forName: .latestUpdateOperationDidFinish, object: job, queue: nil
+      forName: .upkeepUpdateOperationDidFinish, object: job, queue: nil
     ) { _ in notices.withLock { $0 += 1 } }
     defer { NotificationCenter.default.removeObserver(observer) }
     let done = expectation(description: "done")
@@ -198,14 +198,14 @@ final class UpdateSchedulerTest: XCTestCase {
     XCTAssertEqual(notices.withLock { $0 }, 1, "a failed attempt still refreshes the row")
 
     let coordinator = UpdateCheckCoordinator(
-      check: { _, _ in throw LatestError.updateInfoUnavailable }, repositoryProvider: { nil })
+      check: { _, _ in throw UpkeepError.updateInfoUnavailable }, repositoryProvider: { nil })
     let bundle = try XCTUnwrap(BundleCollector.collectBundle(at: app))
     coordinator.updateDiscoveredBundles([bundle])
     let store = try XCTUnwrap(coordinator.appProvider as? AppDataStore)
     XCTAssertTrue(store.apps.contains { $0.fileURL == app })
     try FileManager.default.removeItem(at: app)
     NotificationCenter.default.post(
-      name: .latestUpdateOperationDidFinish, object: nil,
+      name: .upkeepUpdateOperationDidFinish, object: nil,
       userInfo: [UpdateOperation.appIdentifierUserInfoKey: app])
     for _ in 0..<200 where store.apps.contains(where: { $0.fileURL == app }) {
       try await Task.sleep(for: .milliseconds(10))

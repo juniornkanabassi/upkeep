@@ -48,21 +48,21 @@ else
   pass "test-only AppearanceFixture is absent from the Release executable"
 fi
 
-if rg -q 'LATEST_LOCAL_UAT_FIXTURE|Latest-UAT-' < <(strings "$EXECUTABLE_PATH"); then
+if rg -q 'UPKEEP_LOCAL_UAT_FIXTURE|Upkeep-UAT-' < <(strings "$EXECUTABLE_PATH"); then
 	fail "debug-only local UAT fixture is present in the Release executable"
 else
 	pass "debug-only local UAT fixture is absent from the Release executable"
 fi
 
 allowed_bridges=(
-	"Latest/Platform/AppKit/SidebarScrollConfiguration.swift"
-	"Latest/Platform/AppKit/WindowAccessor.swift"
+	"Upkeep/Platform/AppKit/SidebarScrollConfiguration.swift"
+	"Upkeep/Platform/AppKit/WindowAccessor.swift"
 )
 
 bridge_files=()
 while IFS= read -r bridge_file; do
   bridge_files+=("${bridge_file#"$ROOT_DIR/"}")
-done < <(rg -l 'NS(View|ViewController)Representable' "$ROOT_DIR/Latest" \
+done < <(rg -l 'NS(View|ViewController)Representable' "$ROOT_DIR/Upkeep" \
   --glob '*.swift' \
   --glob '!**/AppearanceFixtures.swift' \
   | sort)
@@ -92,7 +92,7 @@ fi
 glass_bridge_files=()
 while IFS= read -r glass_bridge_file; do
 	glass_bridge_files+=("${glass_bridge_file#"$ROOT_DIR/"}")
-done < <(rg -l 'NSGlassEffectView' "$ROOT_DIR/Latest" --glob '*.swift' | sort)
+done < <(rg -l 'NSGlassEffectView' "$ROOT_DIR/Upkeep" --glob '*.swift' | sort)
 
 if ((${#glass_bridge_files[@]} == 0)); then
 	pass "no Liquid Glass view bridge is present"
@@ -109,11 +109,11 @@ fi
 private_framework_files=()
 while IFS= read -r private_framework_file; do
 	private_framework_files+=("${private_framework_file#"$ROOT_DIR/"}")
-done < <(rg -l '^import (CommerceKit|StoreFoundation)$' "$ROOT_DIR/Latest" --glob '*.swift' | sort)
-if ((${#private_framework_files[@]} == 1)) && [[ "${private_framework_files[0]}" == "Latest/Platform/AppStore/AppStoreUpdateOperation.swift" ]]; then
-	pass "private App Store updater frameworks remain isolated to one capability boundary"
+done < <(rg -l '^import (CommerceKit|StoreFoundation)$' "$ROOT_DIR/Upkeep" --glob '*.swift' | sort)
+if ((${#private_framework_files[@]} == 1)) && [[ "${private_framework_files[0]}" == "Upkeep/Platform/AppStore/AppStoreUpdateOperation.swift" ]]; then
+	pass "private App Store upkeep frameworks remain isolated to one capability boundary"
 else
-	fail "private App Store updater framework imports escaped their reviewed boundary"
+	fail "private App Store upkeep framework imports escaped their reviewed boundary"
 fi
 
 exit "$failed"

@@ -44,7 +44,7 @@ final class UpdateInstaller: NSObject, UpdateInstallerProtocol {
       // input in the daemon's private directory and keep it until installation ends.
       let fileManager = FileManager.default
       let staging = URL(fileURLWithPath: "/private/tmp", isDirectory: true)
-        .appendingPathComponent("UpdaterInstaller-" + UUID().uuidString)
+        .appendingPathComponent("UpkeepInstaller-" + UUID().uuidString)
       try fileManager.createDirectory(
         at: staging, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
       // A failed restore leaves the original in staging; keep it for recovery.
@@ -117,7 +117,7 @@ final class UpdateInstaller: NSObject, UpdateInstallerProtocol {
 
   private func failure(_ message: String) -> NSError {
     NSError(
-      domain: "LatestInstallerErrorDomain", code: 1,
+      domain: "UpkeepInstallerErrorDomain", code: 1,
       userInfo: [NSLocalizedDescriptionKey: message])
   }
 }

@@ -3,7 +3,7 @@
 import Synchronization
 import XCTest
 
-@testable import Latest
+@testable import Upkeep
 
 /// A stand-in for brew on an injected path. It answers `info`/`outdated` from JSON files and
 /// performs `upgrade --cask` by staging the cask's payload over its target, the way brew
@@ -484,7 +484,7 @@ final class HomebrewTest: XCTestCase {
     XCTAssertNil(HomebrewAllowList.installedArtifacts(caskroom: root), "Ruby caskfiles are refused")
   }
 
-  /// Sol R2-002: brew exits 0 but Updater rejects the result; the app and brew's Caskroom
+  /// Sol R2-002: brew exits 0 but Upkeep rejects the result; the app and brew's Caskroom
   /// record both go back, the failure is recorded, and the update is offered again.
   func testRejectedUpgradeRestoresTheCaskroomRecordToo() async throws {
     let setup = try makeSetup(payloadVersion: "1.0.5")  // brew says 1.1, installs 1.0.5
@@ -736,7 +736,7 @@ final class HomebrewTest: XCTestCase {
     XCTAssertNil(Homebrew.installedTarget(of: receipt, caskroom: room), "unresolvable")
   }
 
-  /// Sol R2-202: dependencies would be installed outside Updater's protection: hand off,
+  /// Sol R2-202: dependencies would be installed outside Upkeep's protection: hand off,
   /// and no mutating brew command runs.
   func testCasksWithDependenciesHandOffWithoutChangingAnything() async throws {
     for dependency in [["cask": ["other-cask"]], ["formula": ["unar"]]] as [[String: Any]] {

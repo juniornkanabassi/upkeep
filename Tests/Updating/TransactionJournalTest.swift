@@ -4,7 +4,7 @@ import Darwin
 import Synchronization
 import XCTest
 
-@testable import Latest
+@testable import Upkeep
 
 /// Interruption recovery (Round 5b, C): a real replacement in a separate process is killed at
 /// a chosen phase, and the next launch's recovery reconciles what it left. Disposable fixtures
@@ -191,7 +191,7 @@ final class TransactionJournalTest: XCTestCase {
     XCTAssertEqual(record.phase, .external)
     XCTAssertTrue(FileManager.default.fileExists(atPath: record.backup))
     XCTAssertTrue(
-      record.backup.hasPrefix(scene.journal.backups.path), "in Updater's own backup folder")
+      record.backup.hasPrefix(scene.journal.backups.path), "in Upkeep's own backup folder")
     _ = await guarded.settle(
       error: nil, expected: nil, requiresTeam: false,
       lifecycle: FakeTarget(running: false).lifecycle())
@@ -260,7 +260,7 @@ final class TransactionJournalTest: XCTestCase {
     XCTAssertEqual(version(repaired.target), "1.1")
   }
 
-  /// UPD-004: Updater died after journaling a tool but before telling it to go. The tool
+  /// UPD-004: Upkeep died after journaling a tool but before telling it to go. The tool
   /// waits on a pipe, sees it close and exits without running, so nobody has to kill it.
   func testToolWhoseParentDiedBeforeGoExitsByItselfAndRecoveryProceeds() async throws {
     let scene = try scene()

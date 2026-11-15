@@ -1,6 +1,6 @@
 //
 //  AppDependencyBoundaryTest.swift
-//  Latest Tests
+//  Upkeep Tests
 //
 //  Copyright © 2026 Max Langer. All rights reserved.
 //
@@ -12,7 +12,7 @@ import Observation
 import Synchronization
 import XCTest
 
-@testable import Latest
+@testable import Upkeep
 
 @MainActor
 final class AppDependencyBoundaryTest: XCTestCase {
@@ -499,7 +499,7 @@ final class AppDependencyBoundaryTest: XCTestCase {
     XCTAssertEqual(updating.updatedNames, [available.name])
   }
 
-  func testUpdaterHasNoSelfUpdateFeed() {
+  func testUpkeepHasNoSelfUpdateFeed() {
     XCTAssertNil(Bundle.main.object(forInfoDictionaryKey: "SUFeedURL"))
     XCTAssertNil(Bundle.main.object(forInfoDictionaryKey: "SUPublicEDKey"))
   }

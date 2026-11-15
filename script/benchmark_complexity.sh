@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PROJECT="Latest.xcodeproj"
-SCHEME="Updater"
+PROJECT="Upkeep.xcodeproj"
+SCHEME="Upkeep"
 CONFIGURATION="Release"
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BUILD_DIR="$ROOT_DIR/build"
 DERIVED_DATA="$BUILD_DIR/DerivedData"
 MODULE_CACHE="$BUILD_DIR/ModuleCache"
-RESULT_BUNDLE="$BUILD_DIR/Latest-Complexity-Benchmark-$(date +%Y%m%d-%H%M%S).xcresult"
+RESULT_BUNDLE="$BUILD_DIR/Upkeep-Complexity-Benchmark-$(date +%Y%m%d-%H%M%S).xcresult"
 LOG_FILE="$BUILD_DIR/complexity-benchmark.log"
 REPORT_FILE="$BUILD_DIR/complexity-benchmark.txt"
 FLAG_FILE="$BUILD_DIR/run-complexity-benchmarks"
@@ -23,7 +23,7 @@ trap 'rm -f "$FLAG_FILE"' EXIT
 xcodebuild \
   -project "$ROOT_DIR/$PROJECT" \
   -scheme "$SCHEME" \
-  -testPlan LatestComplexityBenchmarks \
+  -testPlan UpkeepComplexityBenchmarks \
   -configuration "$CONFIGURATION" \
   -destination 'platform=macOS' \
   -derivedDataPath "$DERIVED_DATA" \
@@ -36,7 +36,7 @@ xcodebuild \
   CODE_SIGN_IDENTITY="" \
   -enableCodeCoverage NO \
   ENABLE_TESTABILITY=YES \
-  -only-testing:"Latest Tests/ComplexityBenchmarkTest/testComplexityBenchmarks" \
+  -only-testing:"Upkeep Tests/ComplexityBenchmarkTest/testComplexityBenchmarks" \
   test 2>&1 | tee "$LOG_FILE"
 
 grep "BENCHMARK" "$LOG_FILE" > "$REPORT_FILE"

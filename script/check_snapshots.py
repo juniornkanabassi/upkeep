@@ -11,7 +11,7 @@ PAGES = {
     'overview-up-to-date', 'overview-partial', 'overview-checking', 'overview-offline',
     'overview-no-matches', 'overview-first-run', 'overview-no-selection',
     *(f'detail-{name}' for name in ('shottr', 'goodnotes', 'adobe-premiere-pro-2026',
-      'discord', 'obs', 'google-chrome', 'final-cut-pro', 'updater', 'raycast', 'audio-hijack')),
+      'discord', 'obs', 'google-chrome', 'final-cut-pro', 'upkeep', 'raycast', 'audio-hijack')),
     # Round 8 (Upkeep): every library page, the small window, sheets and the menu bar window.
     'page-updates', 'page-updates-running', 'page-needs-you', 'page-all-apps', 'page-drivers',
     'page-history', 'page-small-window', 'library-sidebar', 'uninstall-sheet',

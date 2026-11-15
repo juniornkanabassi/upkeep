@@ -1,6 +1,6 @@
 //
 //  AppListSnapshotTest.swift
-//  Latest Tests
+//  Upkeep Tests
 //
 //  Created by ertyoii on 20.05.26.
 //  Copyright © 2026 Max Langer. All rights reserved.

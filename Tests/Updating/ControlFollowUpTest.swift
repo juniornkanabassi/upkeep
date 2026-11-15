@@ -4,7 +4,7 @@ import Sparkle
 import Synchronization
 import XCTest
 
-@testable import Latest
+@testable import Upkeep
 
 /// Sol's inspection of 0.6.0 (UPD-001 to UPD-005), through the production operations with
 /// injected seams. Nothing opens the App Store, quits a real app or touches /Applications.
@@ -145,7 +145,7 @@ final class ControlFollowUpTest: XCTestCase {
       ).0, "available")
     let bundle = current.bundle
     let failed = App(
-      bundle: bundle, update: .failure(LatestError.updateInfoUnavailable), isIgnored: false)
+      bundle: bundle, update: .failure(UpkeepError.updateInfoUnavailable), isIgnored: false)
     let (state, note) = ControlService.availability(of: failed, checking: false)
     XCTAssertEqual(state, "error")
     XCTAssertNotNil(note, "the check's error is included")
@@ -214,7 +214,7 @@ final class ControlFollowUpTest: XCTestCase {
     let file = try disposableDirectory().appendingPathComponent("history.jsonl")
     let app = makeTestApp(name: "Store", version: "1", remoteVersion: "2")
     let blocked = HandOffNote(
-      destination: "the App Store", reason: "Updater could not confirm the copy.", opened: false,
+      destination: "the App Store", reason: "Upkeep could not confirm the copy.", opened: false,
       blockedByPolicy: true)
     UpdateHistoryStore(fileURL: file).record(
       UpdateHistoryEntry(

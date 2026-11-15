@@ -4,7 +4,7 @@ import AppKit
 import SwiftUI
 import XCTest
 
-@testable import Latest
+@testable import Upkeep
 
 // Exercise the shipping sidebar without opening a window or taking focus.
 final class SidebarRenderingTest: XCTestCase {
@@ -361,7 +361,8 @@ final class SidebarRenderingTest: XCTestCase {
     _ = store.set(
       .success(
         App.Update(
-          app: installed.bundle, remoteVersion: Version(versionNumber: "155.0.8059.39", buildNumber: nil),
+          app: installed.bundle,
+          remoteVersion: Version(versionNumber: "155.0.8059.39", buildNumber: nil),
           minimumOSVersion: nil, source: .appStore, date: installed.updateDate,
           releaseNotes: nil, updateAction: .builtIn { _ in })), for: installed.bundle)
     let model = UpdatesListViewModel(

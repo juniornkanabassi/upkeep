@@ -41,14 +41,14 @@ class RunnerArgumentsTest(unittest.TestCase):
             if name == "xcodebuild":
                 body += ('printf "__CALL__\\n" >> "$ARGUMENTS"\n'
                          'printf "%s\\n" "$@" >> "$ARGUMENTS"\n'
-                         'printf "%s:%s\\n" "$TEST_RUNNER_LATEST_UI_TESTS" "$LATEST_UI_TESTS" >> "$LANE"\n'
-                         'printf "%s\\n" "$TEST_RUNNER_UPDATER_BUILD_DIR" >> "$SNAPSHOT_ROOT"\n')
+                         'printf "%s:%s\\n" "$TEST_RUNNER_UPKEEP_UI_TESTS" "$UPKEEP_UI_TESTS" >> "$LANE"\n'
+                         'printf "%s\\n" "$TEST_RUNNER_UPKEEP_BUILD_DIR" >> "$SNAPSHOT_ROOT"\n')
             command.write_text(body)
             command.chmod(0o755)
         self.environment = dict(os.environ, PATH=str(commands) + ":" + os.environ["PATH"],
                                 CALLS=str(self.calls), ARGUMENTS=str(self.arguments),
-                                LANE=str(self.lane), LATEST_UI_TESTS="1", GRID_CALLS=str(self.grid_calls),
-                                UPDATER_BUILD_DIR=str(self.root / "scratch"), SNAPSHOT_ROOT=str(self.snapshot_root))
+                                LANE=str(self.lane), UPKEEP_UI_TESTS="1", GRID_CALLS=str(self.grid_calls),
+                                UPKEEP_BUILD_DIR=str(self.root / "scratch"), SNAPSHOT_ROOT=str(self.snapshot_root))
 
     def run_script(self, name, *arguments):
         return subprocess.run([str(self.script / name), *arguments], env=self.environment,
@@ -63,12 +63,12 @@ class RunnerArgumentsTest(unittest.TestCase):
         real_home = self.root / "home"
         (real_home / "Library/Preferences").mkdir(parents=True)
         self.environment["HOME"] = str(real_home)
-        domain = "UpdaterRunnerTest." + str(uuid.uuid4())
+        domain = "UpkeepRunnerTest." + str(uuid.uuid4())
         xcodebuild = self.root / "bin/xcodebuild"
         xcodebuild.write_text(
             '#!/bin/bash\n'
             'printf "%s" "$TEST_RUNNER_CFFIXED_USER_HOME" > "$RECORDED_HOME"\n'
-            f'printf "%s\\n" "{domain}" >> "$TEST_RUNNER_UPDATER_TEST_DEFAULTS_MANIFEST"\n'
+            f'printf "%s\\n" "{domain}" >> "$TEST_RUNNER_UPKEEP_TEST_DEFAULTS_MANIFEST"\n'
             f'touch "$TEST_RUNNER_CFFIXED_USER_HOME/Library/Preferences/{domain}.plist"\n'
             f'touch "$HOME/Library/Preferences/{domain}.plist"\n'
             'exit 42\n')
@@ -112,7 +112,7 @@ class RunnerArgumentsTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         calls = self.invocations()
         self.assertEqual(len(calls), 1)
-        self.assertEqual(calls[0][calls[0].index("-scheme") + 1], "Latest Unit Tests")
+        self.assertEqual(calls[0][calls[0].index("-scheme") + 1], "Upkeep Unit Tests")
         self.assertNotIn("-testPlan", calls[0])
         self.assertEqual(self.lane.read_text().strip(), "0:0")
         self.assertEqual(self.grid_calls.read_text().strip(), "grid")
@@ -125,17 +125,17 @@ class RunnerArgumentsTest(unittest.TestCase):
         self.assertFalse(self.arguments.exists())
 
     def test_hosted_plans_and_filters_are_preserved(self):
-        for mode, plan, environment in (("--integration", "LatestIntegration", "0:0"),
-                                        ("--ui", "LatestUI", "1:1")):
+        for mode, plan, environment in (("--integration", "UpkeepIntegration", "0:0"),
+                                        ("--ui", "UpkeepUI", "1:1")):
             with self.subTest(mode=mode):
                 self.arguments.unlink(missing_ok=True)
                 self.lane.unlink(missing_ok=True)
-                filters = ["-skip-testing:Latest Tests/Example", "-only-testing:Latest Tests/Selected"]
+                filters = ["-skip-testing:Upkeep Tests/Example", "-only-testing:Upkeep Tests/Selected"]
                 result = self.run_script("test.sh", mode, *filters)
                 self.assertEqual(result.returncode, 0, result.stderr)
                 calls = self.invocations()
                 self.assertEqual(len(calls), 1)
-                self.assertEqual(calls[0][calls[0].index("-scheme") + 1], "Updater")
+                self.assertEqual(calls[0][calls[0].index("-scheme") + 1], "Upkeep")
                 self.assertEqual(calls[0][calls[0].index("-testPlan") + 1], plan)
                 for argument in filters:
                     self.assertIn(argument, calls[0])
@@ -147,9 +147,9 @@ class RunnerArgumentsTest(unittest.TestCase):
         calls = self.invocations()
         self.assertEqual(len(calls), 3)
         self.assertEqual([call[call.index("-scheme") + 1] for call in calls],
-                         ["Latest Unit Tests", "Updater", "Updater"])
+                         ["Upkeep Unit Tests", "Upkeep", "Upkeep"])
         self.assertEqual([call[call.index("-testPlan") + 1] for call in calls[1:]],
-                         ["LatestIntegration", "LatestUI"])
+                         ["UpkeepIntegration", "UpkeepUI"])
         bundles = [call[call.index("-resultBundlePath") + 1] for call in calls]
         self.assertEqual(len(set(bundles)), 3)
         self.assertEqual(self.lane.read_text().splitlines(), ["0:0", "0:0", "1:1"])
@@ -157,19 +157,19 @@ class RunnerArgumentsTest(unittest.TestCase):
             self.assertEqual(call[call.index("-enableCodeCoverage") + 1], "YES")
 
     def test_all_routes_unit_selection_without_launching_a_hosted_lane(self):
-        selection = "-only-testing:Latest Unit Tests/VersionParserTest"
+        selection = "-only-testing:Upkeep Unit Tests/VersionParserTest"
         result = self.run_script("test.sh", "--all", selection)
         self.assertEqual(result.returncode, 0, result.stderr)
         calls = self.invocations()
         self.assertEqual(len(calls), 1)
         self.assertIn(selection, calls[0])
-        self.assertEqual(calls[0][calls[0].index("-scheme") + 1], "Latest Unit Tests")
+        self.assertEqual(calls[0][calls[0].index("-scheme") + 1], "Upkeep Unit Tests")
         self.assertEqual(self.lane.read_text().strip(), "0:0")
 
     def test_incompatible_or_unknown_target_selection_fails_before_commands(self):
-        for arguments in (("-only-testing:Latest Tests/Example",),
-                          ("-skip-testing:Latest Tests/Example",),
-                          ("--ui", "-only-testing:Latest Unit Tests/Example"),
+        for arguments in (("-only-testing:Upkeep Tests/Example",),
+                          ("-skip-testing:Upkeep Tests/Example",),
+                          ("--ui", "-only-testing:Upkeep Unit Tests/Example"),
                           ("-only-testing:Unknown/Example",)):
             with self.subTest(arguments=arguments):
                 result = self.run_script("test.sh", *arguments)

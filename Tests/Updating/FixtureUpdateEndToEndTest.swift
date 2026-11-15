@@ -5,7 +5,7 @@ import Network
 import Synchronization
 import XCTest
 
-@testable import Latest
+@testable import Upkeep
 
 /// Round 1 proof: disposable fixture apps updated from a local appcast served on 127.0.0.1,
 /// through the real download operation, scheduler, transaction and history store.
@@ -105,7 +105,7 @@ final class FixtureUpdateEndToEndTest: XCTestCase {
     }
     XCTAssertTrue(reason.contains("did not launch"), reason)
     XCTAssertEqual(try FixtureApp.digest(setup.installed), before, "restored byte-for-byte")
-    // A fresh queue and store, as after the list reloads or Updater relaunches.
+    // A fresh queue and store, as after the list reloads or Upkeep relaunches.
     let reloaded = UpdateQueue(history: UpdateHistoryStore(fileURL: setup.history.fileURL))
     guard case .error(let error) = reloaded.state(for: setup.installed) else {
       return XCTFail("The failure must stay on the row after a reload")

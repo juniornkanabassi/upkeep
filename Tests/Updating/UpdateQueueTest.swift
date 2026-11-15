@@ -1,6 +1,6 @@
 //
 //  UpdateQueueTest.swift
-//  Latest Tests
+//  Upkeep Tests
 //
 //  Created by ertyoii on 28.05.26.
 //  Copyright © 2026 Max Langer. All rights reserved.
@@ -12,7 +12,7 @@ import Combine
 import Synchronization
 import XCTest
 
-@testable import Latest
+@testable import Upkeep
 
 @MainActor
 final class UpdateQueueTest: XCTestCase {

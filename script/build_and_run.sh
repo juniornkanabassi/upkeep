@@ -15,10 +15,10 @@ case "$MODE" in
   *) usage >&2; exit 2 ;;
 esac
 APP_NAME="Upkeep"
-PROJECT="Latest.xcodeproj"
-SCHEME="Updater"
+PROJECT="Upkeep.xcodeproj"
+SCHEME="Upkeep"
 CONFIGURATION="Debug"
-BUNDLE_ID="com.juniornkanabassi.Updater"
+BUNDLE_ID="com.juniornkanabassi.Upkeep"
 SIGNING_ARGS=(CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="")
 if [[ "${2:-}" == "--signed" ]]; then
   SIGNING_ARGS=(CODE_SIGNING_ALLOWED=YES CODE_SIGNING_REQUIRED=YES CODE_SIGN_IDENTITY="Apple Development")
@@ -28,15 +28,15 @@ elif [[ -n "${2:-}" ]]; then
 fi
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-BUILD_DIR="${UPDATER_BUILD_DIR:-$ROOT_DIR/build}"
+BUILD_DIR="${UPKEEP_BUILD_DIR:-$ROOT_DIR/build}"
 DERIVED_DATA="$BUILD_DIR/DerivedData"
 MODULE_CACHE="$BUILD_DIR/ModuleCache"
-RESULT_BUNDLE="$BUILD_DIR/Latest.xcresult"
+RESULT_BUNDLE="$BUILD_DIR/Upkeep.xcresult"
 APP_BUNDLE="$DERIVED_DATA/Build/Products/$CONFIGURATION/$APP_NAME.app"
 
 mkdir -p "$BUILD_DIR" "$MODULE_CACHE"
 
-# Quit only this build of Updater (Sparkle ships its own "Updater" executable, so never kill by name).
+# Quit only this build of Upkeep (Sparkle ships its own "Upkeep" executable, so never kill by name).
 RUNNING_PID="$(/usr/bin/pgrep -f "^$APP_BUNDLE/Contents/MacOS/$APP_NAME" | head -1 || true)"
 if [[ -n "$RUNNING_PID" ]]; then
   kill -TERM "$RUNNING_PID" 2>/dev/null || true  # NSApplication treats SIGTERM as a normal quit request
@@ -60,7 +60,7 @@ xcodebuild \
 launch_app() {
   CHECK_HOME="$(mktemp -d "$BUILD_DIR/check-home.XXXXXX")"
   mkdir -p "$CHECK_HOME/data" "$CHECK_HOME/tmp"
-  CFFIXED_USER_HOME="$CHECK_HOME" UPDATER_HOME="$CHECK_HOME/data" TMPDIR="$CHECK_HOME/tmp/" LLVM_PROFILE_FILE="$BUILD_DIR/app-%p.profraw" "$APP_BUNDLE/Contents/MacOS/$APP_NAME" --agent-screen > "$BUILD_DIR/app-launch.log" 2>&1 &
+  CFFIXED_USER_HOME="$CHECK_HOME" UPKEEP_HOME="$CHECK_HOME/data" TMPDIR="$CHECK_HOME/tmp/" LLVM_PROFILE_FILE="$BUILD_DIR/app-%p.profraw" "$APP_BUNDLE/Contents/MacOS/$APP_NAME" --agent-screen > "$BUILD_DIR/app-launch.log" 2>&1 &
   APP_PID=$!
 }
 stop_check() {

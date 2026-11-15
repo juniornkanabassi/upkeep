@@ -3,7 +3,7 @@
 import Synchronization
 import XCTest
 
-@testable import Latest
+@testable import Upkeep
 
 /// A stand-in for msupdate and GoogleUpdater on an injected path. Real vendor tools are never
 /// asked to install anything in tests.
@@ -126,7 +126,7 @@ final class VendorAdaptersTest: XCTestCase {
   }
 
   /// MAU only manages Microsoft's own apps, so its fixtures carry a Microsoft bundle ID.
-  private let microsoftFixtureID = "com.microsoft.updater-fixture"
+  private let microsoftFixtureID = "com.microsoft.upkeep-fixture"
 
   private struct MicrosoftSetup {
     let root: URL
@@ -138,12 +138,14 @@ final class VendorAdaptersTest: XCTestCase {
 
   private func microsoftSetup(payloadVersion: String = "1.1") throws -> MicrosoftSetup {
     let root = try disposableDirectory()
-    let app = try FixtureApp.make(in: root.appendingPathComponent("Apps"), identifier: microsoftFixtureID, version: "1.0")
+    let app = try FixtureApp.make(
+      in: root.appendingPathComponent("Apps"), identifier: microsoftFixtureID, version: "1.0")
     let tool = try FakeVendorTool(in: root, named: "msupdate")
     try tool.register([app: "FIXTURE01"], updates: ["FIXTURE01": "1.1"])
     try tool.stage(
       payload: try FixtureApp.make(
-        in: root.appendingPathComponent("payload"), identifier: microsoftFixtureID, version: payloadVersion),
+        in: root.appendingPathComponent("payload"), identifier: microsoftFixtureID,
+        version: payloadVersion),
       target: app)
     return MicrosoftSetup(
       root: root, app: app, tool: tool,
@@ -195,7 +197,8 @@ final class VendorAdaptersTest: XCTestCase {
     XCTAssertTrue(app.updateAvailable)
     XCTAssertTrue(app.capability.isAutomatic, "included in Update All")
     // An App Store copy is not registered with MAU: no vendor route.
-    let other = try FixtureApp.make(in: setup.root.appendingPathComponent("MAS"), identifier: microsoftFixtureID, version: "1.0")
+    let other = try FixtureApp.make(
+      in: setup.root.appendingPathComponent("MAS"), identifier: microsoftFixtureID, version: "1.0")
     let unregistered = try await vendors.update(
       for: try XCTUnwrap(BundleCollector.collectBundle(at: other)))
     XCTAssertNil(unregistered)
@@ -347,7 +350,8 @@ final class VendorAdaptersTest: XCTestCase {
   /// path for `msupdate --install --apps`, so it hands off and no install runs.
   func testAmbiguousMicrosoftRegistrationHandsOffWithoutInstalling() async throws {
     let setup = try microsoftSetup()
-    let second = try FixtureApp.make(in: setup.root.appendingPathComponent("Copy"), identifier: microsoftFixtureID, version: "1.0")
+    let second = try FixtureApp.make(
+      in: setup.root.appendingPathComponent("Copy"), identifier: microsoftFixtureID, version: "1.0")
     try setup.tool.register(
       [setup.app: "FIXTURE01", second: "FIXTURE01"], updates: ["FIXTURE01": "1.1"])
     let bundle = try XCTUnwrap(BundleCollector.collectBundle(at: setup.app))
@@ -394,7 +398,8 @@ final class VendorAdaptersTest: XCTestCase {
   /// hand-off, no MAU install, the clone discarded and the app reopened.
   func testScopeIsRecheckedAfterQuitBeforeMsupdate() async throws {
     let setup = try microsoftSetup()
-    let second = try FixtureApp.make(in: setup.root.appendingPathComponent("Copy"), identifier: microsoftFixtureID, version: "1.0")
+    let second = try FixtureApp.make(
+      in: setup.root.appendingPathComponent("Copy"), identifier: microsoftFixtureID, version: "1.0")
     let bundle = try XCTUnwrap(BundleCollector.collectBundle(at: setup.app))
     let microsoft = setup.microsoft
     let tool = setup.tool
@@ -547,7 +552,8 @@ final class VendorAdaptersTest: XCTestCase {
   func testTwoMsupdateJobsNeverOverlap() async throws {
     let setup = try microsoftSetup()
     let second = try FixtureApp.make(
-      in: setup.root.appendingPathComponent("Second"), identifier: microsoftFixtureID, version: "1.0")
+      in: setup.root.appendingPathComponent("Second"), identifier: microsoftFixtureID,
+      version: "1.0")
     try setup.tool.register([setup.app: "FIXTURE01", second: "FIXTURE02"], updates: [:])
     try setup.tool.flag("delay", "0.3")
     let queue = UpdateQueue()
@@ -789,15 +795,15 @@ final class VendorAdaptersTest: XCTestCase {
       ])
     let prefs = root.appendingPathComponent("com.adobe.accc.apps.USER.prefs")
     try """
-      <prefs><property key="Apps_Panel_Pref">&lt;products&gt;\
-      &lt;product sapVersion="PHSP_27.9" seenUpdate="true" updateActedOn="false"/&gt;\
-      &lt;product sapVersion="PHSP_28.0" seenUpdate="true" updateActedOn="false"/&gt;\
-      &lt;product sapVersion="PHSPBETA_28.5" seenUpdate="true" updateActedOn="false"/&gt;\
-      &lt;product sapVersion="PPRO_27.0" seenUpdate="true" updateActedOn="false"/&gt;\
-      &lt;product sapVersion="PPRO_27.0.1" seenUpdate="true" updateActedOn="false"/&gt;\
-      &lt;product sapVersion="LRCC_10.1" seenUpdate="true" updateActedOn="false"/&gt;\
-      &lt;/products&gt;</property></prefs>
-      """.write(to: prefs, atomically: true, encoding: .utf8)
+    <prefs><property key="Apps_Panel_Pref">&lt;products&gt;\
+    &lt;product sapVersion="PHSP_27.9" seenUpdate="true" updateActedOn="false"/&gt;\
+    &lt;product sapVersion="PHSP_28.0" seenUpdate="true" updateActedOn="false"/&gt;\
+    &lt;product sapVersion="PHSPBETA_28.5" seenUpdate="true" updateActedOn="false"/&gt;\
+    &lt;product sapVersion="PPRO_27.0" seenUpdate="true" updateActedOn="false"/&gt;\
+    &lt;product sapVersion="PPRO_27.0.1" seenUpdate="true" updateActedOn="false"/&gt;\
+    &lt;product sapVersion="LRCC_10.1" seenUpdate="true" updateActedOn="false"/&gt;\
+    &lt;/products&gt;</property></prefs>
+    """.write(to: prefs, atomically: true, encoding: .utf8)
     XCTAssertEqual(
       AdobeCreativeCloud.newestAppsPanelPrefs(in: root)?.lastPathComponent,
       prefs.lastPathComponent, "the user's prefs are found")
@@ -892,7 +898,7 @@ final class VendorAdaptersTest: XCTestCase {
 
     // The coordinator adds the row on a full scan when an update exists.
     let coordinator = UpdateCheckCoordinator(
-      check: { _, _ in throw LatestError.updateInfoUnavailable }, repositoryProvider: { nil },
+      check: { _, _ in throw UpkeepError.updateInfoUnavailable }, repositoryProvider: { nil },
       systemUpdate: { update })
     coordinator.updateDiscoveredBundles([])
     let store = try XCTUnwrap(coordinator.appProvider as? AppDataStore)
@@ -924,8 +930,8 @@ final class VendorAdaptersTest: XCTestCase {
   /// Opt-in: runs the real detection on this Mac, read-only (msupdate --config/--list,
   /// Google's version API, a copy of pim.db). Never installs.
   func testLiveReadOnlyDetection() async throws {
-    guard ProcessInfo.processInfo.environment["UPDATER_LIVE_VENDOR_PROBE"] == "1" else {
-      throw XCTSkip("Set UPDATER_LIVE_VENDOR_PROBE=1 to probe the real vendor tools read-only.")
+    guard ProcessInfo.processInfo.environment["UPKEEP_LIVE_VENDOR_PROBE"] == "1" else {
+      throw XCTSkip("Set UPKEEP_LIVE_VENDOR_PROBE=1 to probe the real vendor tools read-only.")
     }
     let vendors = VendorAdapters.live
     for path in [

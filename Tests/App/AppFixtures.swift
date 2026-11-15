@@ -6,12 +6,12 @@ import Foundation
 import SwiftUI
 import XCTest
 
-@testable import Latest
+@testable import Upkeep
 
 /// Extra window/input checks are opt-in, but always invisible and inactive.
 func requireUITests() throws {
   try XCTSkipUnless(
-    ProcessInfo.processInfo.environment["LATEST_UI_TESTS"] == "1",
+    ProcessInfo.processInfo.environment["UPKEEP_UI_TESTS"] == "1",
     "Run ./script/test.sh --ui for window and input tests.")
 }
 
@@ -32,7 +32,7 @@ extension AppEnvironment {
 enum LocalUATFixture {
   /// Stable real bundle paths keep deterministic test renders tied to actual
   /// icon assets. This fixture is never selected by the runnable app.
-  static let apps: [Latest.App] = [
+  static let apps: [Upkeep.App] = [
     ("Notes", "26.4", "26.5", "/System/Applications/Notes.app"),
     ("Terminal", "2.14", "2.15", "/System/Applications/Utilities/Terminal.app"),
     ("TextEdit", "1.19", "1.20", "/System/Applications/TextEdit.app"),
@@ -56,7 +56,7 @@ enum LocalUATFixture {
     let bundle = App.Bundle(
       version: Version(versionNumber: fixture.1, buildNumber: nil),
       name: fixture.0,
-      bundleIdentifier: Bundle(url: fileURL)?.bundleIdentifier ?? "com.example.latest-uat.\(index)",
+      bundleIdentifier: Bundle(url: fileURL)?.bundleIdentifier ?? "com.example.upkeep-uat.\(index)",
       fileURL: fileURL,
       source: .sparkle,
       modificationDate: Date(timeIntervalSince1970: 1_750_000_000 - Double(index * 86_400))
@@ -82,16 +82,16 @@ enum LocalUATFixture {
 /// Use the real SwiftUI scene, including its toolbar and native window geometry.
 /// Each fixture owns an isolated model and never starts live discovery.
 @MainActor
-func makeLatestTestWindow(
+func makeUpkeepTestWindow(
   environment: AppEnvironment, dark: Bool = false, activate: Bool = true, testCase: XCTestCase
 ) async throws -> NSWindow {
-  try await makeLatestTestWindow(
-    content: LatestRootView(environment: environment), dark: dark, activate: activate,
+  try await makeUpkeepTestWindow(
+    content: UpkeepRootView(environment: environment), dark: dark, activate: activate,
     testCase: testCase)
 }
 
 @MainActor
-func makeLatestTestWindow<Content: View>(
+func makeUpkeepTestWindow<Content: View>(
   content: Content, dark: Bool = false, activate: Bool = true, testCase: XCTestCase
 ) async throws -> NSWindow {
   let originalAppearanceName = NSApp.appearance?.name.rawValue
@@ -101,11 +101,11 @@ func makeLatestTestWindow<Content: View>(
     }
   }
   (dark ? ApplicationAppearance.dark : .light).apply(to: NSApp)
-  let id = "latest-test-\(UUID().uuidString)"
+  let id = "upkeep-test-\(UUID().uuidString)"
   let existingWindows = Set(NSApp.windows.map(ObjectIdentifier.init))
   NSApp.setActivationPolicy(.prohibited)
   let scene = NSHostingSceneRepresentation {
-    LatestMainWindowScene(id: id) {
+    UpkeepMainWindowScene(id: id) {
       content
         .environment(\.colorScheme, dark ? .dark : .light)
         .environment(\.locale, Locale(identifier: "en_US"))
@@ -128,7 +128,7 @@ func makeLatestTestWindow<Content: View>(
     }
     try await Task.sleep(for: .milliseconds(20))
   }
-  XCTFail("The production Latest scene did not open")
+  XCTFail("The production Upkeep scene did not open")
   throw CocoaError(.coderInvalidValue)
 }
 

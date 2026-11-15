@@ -15,17 +15,17 @@ private func fail(_ message: String) -> Never {
 
 guard CommandLine.arguments.count == 3 else {
   fail(
-    "usage: LATEST_RELEASE_NOTES_CATALOG_PRIVATE_KEY=<base64> script/sign_release_notes_catalog.swift INPUT_JSON OUTPUT_JSON"
+    "usage: UPKEEP_RELEASE_NOTES_CATALOG_PRIVATE_KEY=<base64> script/sign_release_notes_catalog.swift INPUT_JSON OUTPUT_JSON"
   )
 }
 
 guard
   let encodedPrivateKey = ProcessInfo.processInfo.environment[
-    "LATEST_RELEASE_NOTES_CATALOG_PRIVATE_KEY"],
+    "UPKEEP_RELEASE_NOTES_CATALOG_PRIVATE_KEY"],
   let privateKeyData = Data(base64Encoded: encodedPrivateKey)
 else {
   fail(
-    "LATEST_RELEASE_NOTES_CATALOG_PRIVATE_KEY must contain a base64-encoded Curve25519 signing private key"
+    "UPKEEP_RELEASE_NOTES_CATALOG_PRIVATE_KEY must contain a base64-encoded Curve25519 signing private key"
   )
 }
 
@@ -55,7 +55,7 @@ do {
   print(
     "SIGNED RELEASE NOTES CATALOG definitions=\(definitions.count) bytes=\(encodedEnvelope.count)")
   print(
-    "LATEST_RELEASE_NOTES_CATALOG_PUBLIC_KEY=\(privateKey.publicKey.rawRepresentation.base64EncodedString())"
+    "UPKEEP_RELEASE_NOTES_CATALOG_PUBLIC_KEY=\(privateKey.publicKey.rawRepresentation.base64EncodedString())"
   )
 } catch {
   fail(error.localizedDescription)

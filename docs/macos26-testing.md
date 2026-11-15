@@ -11,14 +11,14 @@ brew install cirruslabs/cli/tart
 
 The VM and downloads stay under `build/macos26-vm`. Its public image includes
 Xcode 26.5 and downloads about 70 GB compressed; it can exercise the macOS 26
-appearance, while CI remains the exact Xcode 26.6 gate. Set `LATEST_VM_IMAGE` to a
+appearance, while CI remains the exact Xcode 26.6 gate. Set `UPKEEP_VM_IMAGE` to a
 matching image when one is available. Log in with the image's `admin`/`admin`
 account through `tart exec`; the VM runner has no visible graphics. Setup fixes the guest display at 1440×900 pixels and 1× scale for the
 CI visual references. The host checkout is shared read-only; clone it onto the guest disk:
 
 ```sh
-git clone --no-hardlinks '/Volumes/My Shared Files/latest' ~/Latest
-cd ~/Latest
+git clone --no-hardlinks '/Volumes/My Shared Files/latest' ~/Upkeep
+cd ~/Upkeep
 brew install ripgrep
 ./script/build_and_run.sh
 ./script/test.sh --all

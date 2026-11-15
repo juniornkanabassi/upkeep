@@ -1,16 +1,16 @@
 # Upkeep
 
-Upkeep was called Updater until 0.11.0. The bundle id (`com.juniornkanabassi.Updater`), settings and data folder keep the old name so nothing is lost, the Xcode scheme is still `Updater`, and `updater` remains an alias of the `upkeep` command.
+Upkeep 0.12.0 uses the `com.juniornkanabassi.Upkeep` identity, the Upkeep Xcode project and schemes, and the `upkeep` command. Settings and history migrate on first launch. App Management, helper approval and notification permissions must be granted again. See [identity migration](docs/Identity-migration.md). The old `updater` command alias is no longer installed.
 
 Upkeep is a macOS app that finds and installs updates for the apps on a Mac, whether they came from the App Store, Sparkle feeds or Homebrew. It targets macOS 26 and later and is a personal project by Junior Nkana Bassi; it has no public releases yet.
 
 It is based on [Latest](https://github.com/mangerlahn/Latest) by Max Langer and the [Ertyoii fork](https://github.com/Ertyoii/Latest) of it, and is licensed under [GPL-3.0](LICENSE.md). Upstream and dependency notices are retained, and the full GPL and Sparkle notices are available offline in Help → Licenses.
 
-![Upkeep](latest.png)
+![Upkeep](upkeep.png)
 
 ## Development
 
-Requires Xcode 26.5 or later and `ripgrep`. Development and CI use `main`; CI uses Xcode 26.6. Open the `Updater` scheme in `Latest.xcodeproj` (the project file keeps its upstream name), or run:
+Requires Xcode 26.5 or later and `ripgrep`. Development and CI use `main`; CI uses Xcode 26.6. Open the `Upkeep` scheme in `Upkeep.xcodeproj`, or run:
 
 ```sh
 brew install ripgrep
@@ -23,15 +23,15 @@ brew install ripgrep
 
 `build_and_run.sh --help` lists launch, debugger, and logging options. Add `--signed` after a mode for an Apple Development build; the App Store installation helper requires the app and helper to share a valid signing identity.
 
-`test.sh` runs script regressions, architecture checks, and the **unhosted** `Latest Unit Tests` target under `xctest`. Set `UPDATER_BUILD_DIR` (for example `/private/tmp/updater-build/test`) to keep build products out of iCloud-synced folders. It compiles the same production domain, snapshot, progress-presentation, and bounded-executor sources directly into the test bundle. It has no application dependency or `TEST_HOST`: `main.swift`, SwiftUI scenes, live discovery, and network services are outside its source membership. Preference tests use disposable suites, and filesystem tests use temporary fixtures. Focus a function with `-only-testing:'Latest Unit Tests/VersionParserTest/testBuildNumberParsing'`. Coverage is opt-in with `--coverage`; run `./script/format.sh` to apply the pinned formatting rules.
+`test.sh` runs script regressions, architecture checks, and the **unhosted** `Upkeep Unit Tests` target under `xctest`. Set `UPKEEP_BUILD_DIR` (for example `/private/tmp/upkeep-build/test`) to keep build products out of iCloud-synced folders. It compiles the same production domain, snapshot, progress-presentation, and bounded-executor sources directly into the test bundle. It has no application dependency or `TEST_HOST`: `main.swift`, SwiftUI scenes, live discovery, and network services are outside its source membership. Preference tests use disposable suites, and filesystem tests use temporary fixtures. Focus a function with `-only-testing:'Upkeep Unit Tests/VersionParserTest/testBuildNumberParsing'`. Coverage is opt-in with `--coverage`; run `./script/format.sh` to apply the pinned formatting rules.
 
 `lint.sh` downloads and verifies the pinned SwiftLint 0.65.1 portable binary on first use, then runs the focused correctness rules in `.swiftlint.yml` with warnings treated as failures. Formatting stays with Apple `swift-format`; naming and length preferences are not lint gates. Literal release-note regexes have a documented, scoped `force_try` exception.
 
 `./script/lint.sh --analyze` makes fresh isolated unsigned builds of both schemes and reports unused-declaration candidates as advisory warnings. It compiles hosted, unhosted, and opt-in audit callers without running tests or opening apps. Confirmed runtime, binding, and cross-module false positives have documented declaration-level exceptions; new findings require review before deletion. `unused_import` is disabled because SourceKit reports circular references in the conditional audit on Swift 6.4; analyzer errors still fail the command. CI runs formatting, strict lint, declaration analysis, and the existing test gates, preserving analysis/build logs under `build/`.
 
-`./script/test.sh --integration` runs the application-hosted `Latest Tests` target in a background host: platform adapters, service lifecycles, storage, offscreen layout, and WebKit compatibility. The host suppresses production startup and activation. Focus it with `--integration -only-testing:'Latest Tests/UpdateQueueTest'`. `./script/test.sh --ui` selects hosted production-window, input, accessibility, and screenshot checks; their windows stay transparent and the app stays inactive. These instantiate production views/scenes in the host; this project has no external XCUIAutomation target. `--all` runs unit, integration, then UI checks sequentially. Benchmarks and live catalog audits keep their separate commands.
+`./script/test.sh --integration` runs the application-hosted `Upkeep Tests` target in a background host: platform adapters, service lifecycles, storage, offscreen layout, and WebKit compatibility. The host suppresses production startup and activation. Focus it with `--integration -only-testing:'Upkeep Tests/UpdateQueueTest'`. `./script/test.sh --ui` selects hosted production-window, input, accessibility, and screenshot checks; their windows stay transparent and the app stays inactive. These instantiate production views/scenes in the host; this project has no external XCUIAutomation target. `--all` runs unit, integration, then UI checks sequentially. Benchmarks and live catalog audits keep their separate commands.
 
-In Xcode, choose the `Latest Unit Tests` scheme for app-free tests. The `Updater` scheme defaults to the `LatestIntegration` test plan; select `LatestUI` explicitly for invisible window checks. Dedicated benchmark plans preserve the Release runners. CI runs all three correctness lanes. For another host OS, see [testing on macOS 26](docs/macos26-testing.md).
+In Xcode, choose the `Upkeep Unit Tests` scheme for app-free tests. The `Upkeep` scheme defaults to the `UpkeepIntegration` test plan; select `UpkeepUI` explicitly for invisible window checks. Dedicated benchmark plans preserve the Release runners. CI runs all three correctness lanes. For another host OS, see [testing on macOS 26](docs/macos26-testing.md).
 
 Both test bundles compile the shared `Tests/TestOffscreen` guard. It makes ordered-in windows transparent and click-through and blocks application activation before tests begin. Hosted tests also install the invisible-window observer before constructing scenes. Input fixtures deliver events within the test process without activating another app. Existing appearance references remain unchanged. WindowServer capture checks explicitly skip because fully transparent windows cannot supply those frames; native input checks skip when the inactive host cannot acquire a local key window. Offscreen rendering, direct control tests and event-independent checks still run.
 
@@ -43,12 +43,12 @@ The [development guide](docs/Development.md) gives a reading order, design ratio
 
 | Directory | Responsibility |
 | --- | --- |
-| `Latest/App` | Assembly, scenes, commands, and lifecycle |
-| `Latest/Domain` | Immutable app metadata and version rules |
-| `Latest/Features` | SwiftUI presentation and feature state |
-| `Latest/Services` | Discovery, update checking, and release notes |
-| `Latest/Platform` | AppKit, WebKit compatibility, update sources, and installers |
-| `Latest/Support` | Preferences, presentation helpers, and shared infrastructure |
+| `Upkeep/App` | Assembly, scenes, commands, and lifecycle |
+| `Upkeep/Domain` | Immutable app metadata and version rules |
+| `Upkeep/Features` | SwiftUI presentation and feature state |
+| `Upkeep/Services` | Discovery, update checking, and release notes |
+| `Upkeep/Platform` | AppKit, WebKit compatibility, update sources, and installers |
+| `Upkeep/Support` | Preferences, presentation helpers, and shared infrastructure |
 | `Tests` | Behavior, integration, visual, and performance contracts |
 | `script` | Local build, validation, measurement, and audit commands |
 
@@ -75,9 +75,9 @@ Obsidian's installed version comes from its ASAR payload; Delta's comes from val
 ## Appearance snapshots
 
 `./script/test.sh --integration` writes light and dark fixture PNGs for the main content,
-detail states, Settings tabs, About and Licences to `$UPDATER_BUILD_DIR/snapshots`
+detail states, Settings tabs, About and Licences to `$UPKEEP_BUILD_DIR/snapshots`
 (default `build/snapshots`). The runner forwards this path to the test host.
-Direct Xcode runs render the same checks without saving PNGs unless `UPDATER_BUILD_DIR` is set.
+Direct Xcode runs render the same checks without saving PNGs unless `UPKEEP_BUILD_DIR` is set.
 The main-window fixture uses the production split view and detail surface with disposable data.
 The full council gate is `./script/check.sh`: it runs all three test lanes, requires all 30
 surfaces in both appearances, and rejects incomplete or corrupt snapshot output.
@@ -87,7 +87,7 @@ original/candidate comparison has been reviewed.
 
 ## Command line and AI assistants
 
-Upkeep includes an `upkeep` command and an MCP server so Claude, Codex and other assistants can use it. Both talk to the running app over a socket in `~/Library/Application Support/Updater/control.sock` that only your own user account can open. If Upkeep is closed, a command starts it in the background with no window. Every action goes through the same scheduler as the window, so the window shows a job started from the command line as it runs.
+Upkeep includes an `upkeep` command and an MCP server so Claude, Codex and other assistants can use it. Both talk to the running app over a socket in `~/Library/Application Support/Upkeep/control.sock` that only your own user account can open. If Upkeep is closed, a command starts it in the background with no window. Every action goes through the same scheduler as the window, so the window shows a job started from the command line as it runs.
 
 `install.sh` links the command into `~/.local/bin`. By hand:
 
@@ -149,11 +149,11 @@ Under the rules above, two catalogue entries that are channels of one product (`
 
 ## Interrupted updates
 
-Every route that moves or clones an app (direct downloads, Sparkle, Homebrew with its Caskroom record, vendor tools, the App Store helper) first writes a record to `~/Library/Application Support/Updater/transactions/` and keeps the original in `~/Library/Application Support/Updater/Backups/` (or a `.Updater Backups` folder beside the app when it is on another volume). The record is flushed at each step and removed once the attempt settles. At launch, before the window, the CLI or MCP can start anything, Upkeep waits for any installer named in a record to stop (the row says it is recovering, and jobs on that app or tool wait), then puts things right: a missing or damaged app gets its original back, a verified new version keeps it and drops the backup, and anything unclear keeps both copies and says where they are.
+Every route that moves or clones an app (direct downloads, Sparkle, Homebrew with its Caskroom record, vendor tools, the App Store helper) first writes a record to `~/Library/Application Support/Upkeep/transactions/` and keeps the original in `~/Library/Application Support/Upkeep/Backups/` (or a `.Upkeep Backups` folder beside the app when it is on another volume). The record is flushed at each step and removed once the attempt settles. At launch, before the window, the CLI or MCP can start anything, Upkeep waits for any installer named in a record to stop (the row says it is recovering, and jobs on that app or tool wait), then puts things right: a missing or damaged app gets its original back, a verified new version keeps it and drops the backup, and anything unclear keeps both copies and says where they are.
 
 ## Release notes
 
-`Latest/Resources/LatestReleaseNotes.json` supplies version-matched offline notes inherited from the Ertyoii fork. Upkeep does not update itself yet: it has no appcast or public key configured, and no menu item that opens a releases page.
+`Upkeep/Resources/UpkeepReleaseNotes.json` supplies version-matched offline notes inherited from the Ertyoii fork. Upkeep does not update itself yet: it has no appcast or public key configured, and no menu item that opens a releases page.
 
 Notes can load even if update checking fails. A failed or metadata-only source falls back to the vendor catalog. Notes target the available update or installed version; broad-version and latest-section fallbacks retain a degraded quality rating. Preparation, display, and new cache entries share immutable semantic text; older RTF caches use a narrow compatibility reader. Only genuine, nonempty notes are reused from the rendered cache; degraded fallbacks are retried so a recovered source can replace them.
 
@@ -184,10 +184,10 @@ Build products, logs, and captures can be regenerated. Keep visual references an
 
 ```sh
 ./build.sh              # signed Release build, verified, zipped into ../Outputs/Upkeep-<version>.zip
-./install.sh            # installs into /Applications/JuniorOS Apps (override with UPDATER_INSTALL_ROOT)
+./install.sh            # installs into /Applications/JuniorOS Apps (override with UPKEEP_INSTALL_ROOT)
 ```
 
-Both use the Apple Development identity for team M6L2VW4W5Z and build under `/private/tmp/updater-build`. `build.sh` also checks that the helper launch constraint names that team. The install helper reads the team from the `DEVELOPMENT_TEAM` build setting through `UpdaterTeamIdentifier` in both Info.plists, and the two helper launchd plists in `UpdateInstaller/` hard-code it (launch constraints cannot use substitution).
+Both use the Apple Development identity for team M6L2VW4W5Z and build under `/private/tmp/upkeep-build`. `build.sh` also checks that the helper launch constraint names that team. The install helper reads the team from the `DEVELOPMENT_TEAM` build setting through `UpkeepTeamIdentifier` in both Info.plists, and the two helper launchd plists in `UpdateInstaller/` hard-code it (launch constraints cannot use substitution).
 
 ## Licence
 

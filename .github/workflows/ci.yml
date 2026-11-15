@@ -38,7 +38,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: build/DerivedData/SourcePackages
-          key: packages-${{ runner.os }}-${{ runner.arch }}-xcode26.6-${{ hashFiles('Latest.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
+          key: packages-${{ runner.os }}-${{ runner.arch }}-xcode26.6-${{ hashFiles('Upkeep.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
 
       - name: Cache pinned SwiftLint
         uses: actions/cache@v6
@@ -49,10 +49,10 @@ jobs:
       - name: Resolve pinned dependencies
         run: |
           xcodebuild -resolvePackageDependencies \
-            -project Latest.xcodeproj -scheme Updater \
+            -project Upkeep.xcodeproj -scheme Upkeep \
             -derivedDataPath build/DerivedData \
             -onlyUsePackageVersionsFromResolvedFile
-          git diff --exit-code -- Latest.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
+          git diff --exit-code -- Upkeep.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
 
       - name: Check formatting and correctness lint
         run: |
@@ -74,7 +74,7 @@ jobs:
 
       - name: Run production UI gates
         env:
-          TEST_RUNNER_LATEST_VISUAL_OUTPUT_DIRECTORY: ${{ github.workspace }}/build/visual-diagnostics
+          TEST_RUNNER_UPKEEP_VISUAL_OUTPUT_DIRECTORY: ${{ github.workspace }}/build/visual-diagnostics
         run: |
           set -o pipefail
           ./script/test.sh --ui 2>&1 | tee build/ci-ui-tests.log

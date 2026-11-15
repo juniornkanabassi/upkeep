@@ -3,7 +3,7 @@
 import Synchronization
 import XCTest
 
-@testable import Latest
+@testable import Upkeep
 
 /// The recursive FSEvents watcher on a disposable folder: a changed bundle is re-read on its
 /// own, while new and removed apps rescan the folder.

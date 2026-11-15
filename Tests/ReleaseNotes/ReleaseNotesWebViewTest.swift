@@ -6,7 +6,7 @@ import SwiftUI
 import WebKit
 import XCTest
 
-@testable import Latest
+@testable import Upkeep
 
 final class ReleaseNotesWebViewTest: XCTestCase {
   @MainActor
@@ -42,7 +42,7 @@ final class ReleaseNotesWebViewTest: XCTestCase {
       content.runs.first { $0.text == "571156746" }?.link,
       URL(string: "https://issues.chromium.org/issues/571156746"))
     let app = makeTestApp(name: "Chrome", version: "156.0.8078.74")
-    let window = try await makeLatestTestWindow(
+    let window = try await makeUpkeepTestWindow(
       content: ReleaseNotesDetailSurface(app: app, contentState: .text(content)), testCase: self)
     defer { window.close() }
     let host = try XCTUnwrap(window.contentView)

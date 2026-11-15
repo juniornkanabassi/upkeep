@@ -6,7 +6,7 @@ import SwiftUI
 import Synchronization
 import XCTest
 
-@testable import Latest
+@testable import Upkeep
 
 final class UpdateActionInteractionTest: XCTestCase {
   @MainActor
@@ -317,7 +317,7 @@ final class UpdateActionInteractionTest: XCTestCase {
     for dark in [false, true] {
       for (name, presentation) in states {
         var actions = 0
-        let window = try await makeLatestTestWindow(
+        let window = try await makeUpkeepTestWindow(
           content:
             UpdateActionSurface(
               app: app, presentation: presentation, performAction: { actions += 1 }
@@ -412,17 +412,17 @@ private final class ActionRoutingSpy: AppUpdating {
   private let calls = Mutex((update: 0, cancel: 0, retryQuit: 0))
   var counts: (update: Int, cancel: Int, retryQuit: Int) { calls.withLock { $0 } }
   init(state: UpdateProgressState) { current = state }
-  func isUpdating(_ app: Latest.App) -> Bool { true }
-  func update(_ app: Latest.App, isBulkUpdate: Bool) { calls.withLock { $0.update += 1 } }
-  func cancel(_ app: Latest.App) { calls.withLock { $0.cancel += 1 } }
-  @MainActor func retryTermination(_ app: Latest.App) { calls.withLock { $0.retryQuit += 1 } }
-  func state(for identifier: Latest.App.Bundle.Identifier) -> UpdateProgressState { current }
-  @MainActor func states(for identifier: Latest.App.Bundle.Identifier) -> AsyncStream<
+  func isUpdating(_ app: Upkeep.App) -> Bool { true }
+  func update(_ app: Upkeep.App, isBulkUpdate: Bool) { calls.withLock { $0.update += 1 } }
+  func cancel(_ app: Upkeep.App) { calls.withLock { $0.cancel += 1 } }
+  @MainActor func retryTermination(_ app: Upkeep.App) { calls.withLock { $0.retryQuit += 1 } }
+  func state(for identifier: Upkeep.App.Bundle.Identifier) -> UpdateProgressState { current }
+  @MainActor func states(for identifier: Upkeep.App.Bundle.Identifier) -> AsyncStream<
     UpdateProgressState
   > {
     AsyncStream { $0.finish() }
   }
-  @MainActor func stateChanges(for identifier: Latest.App.Bundle.Identifier) -> UpdateStateFeed {
+  @MainActor func stateChanges(for identifier: Upkeep.App.Bundle.Identifier) -> UpdateStateFeed {
     (current, states(for: identifier))
   }
 }

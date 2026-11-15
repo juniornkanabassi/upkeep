@@ -5,11 +5,11 @@ import Sparkle
 import Synchronization
 import XCTest
 
-@testable import Latest
+@testable import Upkeep
 
 /// The control socket, the built `updater` CLI and the MCP adapter against a test server on a
 /// disposable socket, with fixture apps in a temporary folder. Nothing here starts the real app,
-/// updates a real app or touches /Applications (UPDATER_HOME keeps the CLI on the test socket).
+/// updates a real app or touches /Applications (UPKEEP_HOME keeps the CLI on the test socket).
 @MainActor
 final class ControlTest: XCTestCase {
   // MARK: Fixtures
@@ -58,7 +58,10 @@ final class ControlTest: XCTestCase {
           },
           updating: updating, history: history, readinessWait: .milliseconds(400),
           setIgnored: { ignored, app in
-            harness?.apps = harness?.apps.map { $0.bundleIdentifier == app.bundleIdentifier ? $0.with(ignoredState: ignored) : $0 } ?? []
+            harness?.apps =
+              harness?.apps.map {
+                $0.bundleIdentifier == app.bundleIdentifier ? $0.with(ignoredState: ignored) : $0
+              } ?? []
           }))
       harness = self
     }
@@ -73,7 +76,7 @@ final class ControlTest: XCTestCase {
 
   /// Socket paths are limited to 103 bytes, so the home is short, under /tmp.
   private func harness() throws -> Harness {
-    let home = URL(fileURLWithPath: "/tmp/updater-ctl-" + UUID().uuidString.prefix(8))
+    let home = URL(fileURLWithPath: "/tmp/upkeep-ctl-" + UUID().uuidString.prefix(8))
     try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
     let harness = Harness(
       home: home, historyURL: try disposableDirectory().appendingPathComponent("history.jsonl"))
@@ -88,7 +91,8 @@ final class ControlTest: XCTestCase {
   /// A fixture app at 1.0 whose update rewrites its own Info.plist to 1.1 through the queue.
   private func fixtureApp(
     _ harness: Harness, name: String, lock: String? = nil, gate: AsyncStream<Void>? = nil,
-    declinesQuit: Bool = false, log: InstallLog? = nil, handOff: OpenCount? = nil, canonicalPath: Bool = false
+    declinesQuit: Bool = false, log: InstallLog? = nil, handOff: OpenCount? = nil,
+    canonicalPath: Bool = false
   ) throws -> App {
     var directory = try disposableDirectory()
     if canonicalPath {
@@ -521,8 +525,8 @@ final class ControlTest: XCTestCase {
     XCTAssertTrue(sparkle.isFinished, "the job ends by itself, even past its commit point")
   }
 
-  /// R5-005: availability Updater cannot see is reported as unknown, never as the installed
-  /// version, and the source is the route Updater chose.
+  /// R5-005: availability Upkeep cannot see is reported as unknown, never as the installed
+  /// version, and the source is the route Upkeep chose.
   func testUnknownAvailabilityAndSelectedSourceAreReported() async throws {
     let harness = try harness()
     let url = try FixtureApp.make(
@@ -557,7 +561,10 @@ final class ControlTest: XCTestCase {
     harness.apps = [app]
     let started = try await updateResults(harness, ["target": app.fileURL.path])
     let id = try XCTUnwrap(started.first?["jobId"]?.stringValue)
-    Task { try? await Task.sleep(for: .milliseconds(250)); gate.continuation.finish() }
+    Task {
+      try? await Task.sleep(for: .milliseconds(250))
+      gate.continuation.finish()
+    }
     let start = ContinuousClock.now
     let response = try await request(harness, "status", ["job": id, "wait": "2"])
     XCTAssertEqual(response.data?["job"]?.objectValue?["state"], "updated")
@@ -571,9 +578,11 @@ final class ControlTest: XCTestCase {
     let changed = try await request(harness, "set", ["target": app.fileURL.path, "ignore": "on"])
     XCTAssertTrue(changed.ok)
     XCTAssertTrue(harness.apps[0].isIgnored)
-    let invalid = try await request(harness, "set", ["target": app.fileURL.path, "ignore": "maybe"])
+    let invalid = try await request(
+      harness, "set", ["target": app.fileURL.path, "ignore": "maybe"])
     XCTAssertFalse(invalid.ok)
-    let cleared = try await request(harness, "set", ["target": app.bundleIdentifier, "ignore": "off"])
+    let cleared = try await request(
+      harness, "set", ["target": app.bundleIdentifier, "ignore": "off"])
     XCTAssertTrue(cleared.ok)
     XCTAssertFalse(harness.apps[0].isIgnored)
   }
@@ -604,8 +613,8 @@ final class ControlTest: XCTestCase {
       process.executableURL = executable
       process.arguments = arguments
       var environment = ProcessInfo.processInfo.environment
-      environment["UPDATER_HOME"] = home.path
-      environment["UPDATER_CLI"] =
+      environment["UPKEEP_HOME"] = home.path
+      environment["UPKEEP_CLI"] =
         executable.deletingLastPathComponent()
         .appendingPathComponent("upkeep").path
       process.environment = environment
@@ -656,48 +665,70 @@ final class ControlTest: XCTestCase {
       let app = try fixtureApp(harness, name: "Removal", canonicalPath: true)
       harness.apps = [app]
       let home = app.fileURL.deletingLastPathComponent()
-      var planner = UninstallPlanner(home: home, systemLibrary: home.appendingPathComponent("Library"),
+      var planner = UninstallPlanner(
+        home: home, systemLibrary: home.appendingPathComponent("Library"),
         copies: { _ in [app.fileURL.path] }, isRunning: { _ in false })
       if mode == "cancelled" { planner.uid = getuid() + 1 }
       if mode == "partial" {
         let cache = home.appendingPathComponent("Library/Caches/com.example.removal")
-        try FileManager.default.createDirectory(at: cache.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(
+          at: cache.deletingLastPathComponent(), withIntermediateDirectories: true)
         try Data().write(to: cache)
       }
-      let uninstall = UninstallService(planner: planner, history: nil, logURL: home.appendingPathComponent("log"),
+      let uninstall = UninstallService(
+        planner: planner, history: nil, logURL: home.appendingPathComponent("log"),
         trash: { url in
           if mode == "partial", url.pathExtension != "app" {
-            try FileManager.default.moveItem(at: url, to: home.appendingPathComponent("moved-cache"))
-          } else { throw CocoaError(.fileWriteNoPermission) }
+            try FileManager.default.moveItem(
+              at: url, to: home.appendingPathComponent("moved-cache"))
+          } else {
+            throw CocoaError(.fileWriteNoPermission)
+          }
         }, removeAdmin: { _, _ in throw CancellationError() })
       harness.service.uninstall = uninstall
-      let token = try XCTUnwrap(uninstall.preview(app: app.fileURL, withData: false, caller: "test")["token"]?.stringValue)
-      let cli = try await run(helpers.appendingPathComponent("Helpers/upkeep"),
-        ["uninstall", app.bundleIdentifier, "--confirm", token, "--caller", "test", "--json"], home: harness.home)
+      let token = try XCTUnwrap(
+        uninstall.preview(app: app.fileURL, withData: false, caller: "test")["token"]?.stringValue)
+      let cli = try await run(
+        helpers.appendingPathComponent("Helpers/upkeep"),
+        ["uninstall", app.bundleIdentifier, "--confirm", token, "--caller", "test", "--json"],
+        home: harness.home)
       XCTAssertNotEqual(cli.status, 0)
       let response = try JSONDecoder().decode(ControlResponse.self, from: Data(cli.output.utf8))
       XCTAssertFalse(response.ok)
       XCTAssertEqual(response.code, "uninstall_failed")
       if mode == "cancelled" {
-        XCTAssertEqual(response.message, "Nothing was removed. Untick the items that need your password to remove the rest without it.")
+        XCTAssertEqual(
+          response.message,
+          "Nothing was removed. Untick the items that need your password to remove the rest without it."
+        )
         XCTAssertEqual(response.data?["adminItems"]?.arrayValue, [.string(app.fileURL.path)])
         XCTAssertTrue(FileManager.default.fileExists(atPath: app.fileURL.path))
       }
       XCTAssertTrue(results(response).contains { $0["status"] == "failed" && $0["message"] != nil })
-      if mode == "partial" { XCTAssertTrue(results(response).contains { $0["status"] == "removed" }) }
+      if mode == "partial" {
+        XCTAssertTrue(results(response).contains { $0["status"] == "removed" })
+      }
 
-      let textToken = try XCTUnwrap(uninstall.preview(app: app.fileURL, withData: false, caller: "test")["token"]?.stringValue)
-      let textFailure = try await run(helpers.appendingPathComponent("Helpers/upkeep"),
-        ["uninstall", app.bundleIdentifier, "--confirm", textToken, "--caller", "test"], home: harness.home)
+      let textToken = try XCTUnwrap(
+        uninstall.preview(app: app.fileURL, withData: false, caller: "test")["token"]?.stringValue)
+      let textFailure = try await run(
+        helpers.appendingPathComponent("Helpers/upkeep"),
+        ["uninstall", app.bundleIdentifier, "--confirm", textToken, "--caller", "test"],
+        home: harness.home)
       XCTAssertNotEqual(textFailure.status, 0)
       XCTAssertTrue(textFailure.output.contains("failed: " + app.fileURL.path), textFailure.output)
 
       // Exercise the built MCP error adapter over the socket with the actual service outcome.
       harness.server?.stop()
-      harness.server = try ControlServer(path: harness.socket, allowedUID: getuid()) { _ in response }
-      let mcp = try await run(helpers.appendingPathComponent("Helpers/upkeep"), ["mcp"], home: harness.home,
-        input: "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"uninstall_confirm\",\"arguments\":{\"token\":\"fixture\"}}}\n")
-      let reply = try XCTUnwrap(try JSONSerialization.jsonObject(with: Data(mcp.output.utf8)) as? [String: Any])
+      harness.server = try ControlServer(path: harness.socket, allowedUID: getuid()) { _ in response
+      }
+      let mcp = try await run(
+        helpers.appendingPathComponent("Helpers/upkeep"), ["mcp"], home: harness.home,
+        input:
+          "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"uninstall_confirm\",\"arguments\":{\"token\":\"fixture\"}}}\n"
+      )
+      let reply = try XCTUnwrap(
+        try JSONSerialization.jsonObject(with: Data(mcp.output.utf8)) as? [String: Any])
       let result = try XCTUnwrap(reply["result"] as? [String: Any])
       XCTAssertEqual(result["isError"] as? Bool, true)
       let content = try XCTUnwrap(result["content"] as? [[String: Any]])
@@ -717,7 +748,8 @@ final class ControlTest: XCTestCase {
       {"jsonrpc":"2.0","id":"1","method":"tools/call","params":{"name":"configure","arguments":{"target":"com.example.typed","ignored":false}}}
 
       """
-    let output = try await run(helpers.appendingPathComponent("Helpers/upkeep"), ["mcp"], home: harness.home, input: input)
+    let output = try await run(
+      helpers.appendingPathComponent("Helpers/upkeep"), ["mcp"], home: harness.home, input: input)
     let replies = try output.output.split(separator: "\n").map {
       try XCTUnwrap(JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any])
     }
@@ -747,10 +779,13 @@ final class ControlTest: XCTestCase {
         {"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId":\(cancelled)}}
 
         """
-      let output = try await run(helpers.appendingPathComponent("Helpers/upkeep"), ["mcp"], home: harness.home, input: input)
+      let output = try await run(
+        helpers.appendingPathComponent("Helpers/upkeep"), ["mcp"], home: harness.home, input: input)
       let replies = output.output.split(separator: "\n")
       XCTAssertEqual(replies.count, 1)
-      let reply = try XCTUnwrap(try JSONSerialization.jsonObject(with: Data(try XCTUnwrap(replies.first).utf8)) as? [String: Any])
+      let reply = try XCTUnwrap(
+        try JSONSerialization.jsonObject(with: Data(try XCTUnwrap(replies.first).utf8))
+          as? [String: Any])
       XCTAssertEqual(reply["id"] is String, cancelled == "1")
     }
   }
@@ -773,8 +808,8 @@ final class ControlTest: XCTestCase {
       process.executableURL = adapter
       process.arguments = ["mcp"]
       var environment = ProcessInfo.processInfo.environment
-      environment["UPDATER_HOME"] = harness.home.path
-      environment["UPDATER_CLI"] =
+      environment["UPKEEP_HOME"] = harness.home.path
+      environment["UPKEEP_CLI"] =
         Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/upkeep").path
       process.environment = environment
       let stdout = Pipe()
@@ -799,11 +834,17 @@ final class ControlTest: XCTestCase {
     {
       $0["name"] as? String
     }
-    XCTAssertEqual(tools, ["list", "check", "update", "status", "history", "configure", "uninstall_preview", "uninstall_confirm"])
+    XCTAssertEqual(
+      tools,
+      [
+        "list", "check", "update", "status", "history", "configure", "uninstall_preview",
+        "uninstall_confirm",
+      ])
     let definitions = (reply(2)?["result"] as? [String: Any])?["tools"] as? [[String: Any]]
     XCTAssertEqual((definitions?.first?["annotations"] as? [String: Bool])?["readOnlyHint"], true)
     XCTAssertNotNil(definitions?.first?["outputSchema"])
-    XCTAssertEqual((reply(1)?["result"] as? [String: Any])?["protocolVersion"] as? String, "2025-11-25")
+    XCTAssertEqual(
+      (reply(1)?["result"] as? [String: Any])?["protocolVersion"] as? String, "2025-11-25")
     func structured(_ id: Int) -> [String: Any]? {
       (reply(id)?["result"] as? [String: Any])?["structuredContent"] as? [String: Any]
     }
@@ -873,3 +914,88 @@ final class OpenCount: Sendable {
 final class InstallLog: Sendable {
   let entries = Mutex<[(name: String, start: Date, end: Date)]>([])
 }
+
+#if UPKEEP_HOSTED_TESTS
+  final class UpkeepIdentityMigrationTest: XCTestCase {
+    func testFreshInstall() throws {
+      try checkMigration(oldData: false, newData: false, pending: false)
+    }
+    func testOldDataMovesWithSettings() throws {
+      try checkMigration(oldData: true, newData: false, pending: false)
+    }
+    func testBothFoldersFailWithoutLosingEither() throws {
+      try checkMigration(oldData: true, newData: true, pending: false)
+    }
+    func testPendingJournalStaysAtOriginalPaths() throws {
+      try checkMigration(oldData: true, newData: false, pending: true)
+    }
+
+    private func checkMigration(oldData: Bool, newData: Bool, pending: Bool) throws {
+      let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+      let old = root.appendingPathComponent(UpkeepIdentityMigration.oldFolder)
+      let new = root.appendingPathComponent("Upkeep")
+      let oldDomain = "UpkeepMigrationOld." + UUID().uuidString
+      let newDomain = "UpkeepMigrationNew." + UUID().uuidString
+      let defaults = UserDefaults.standard
+      defer {
+        defaults.removeTestPersistentDomain(forName: oldDomain)
+        defaults.removeTestPersistentDomain(forName: newDomain)
+        try? FileManager.default.removeItem(at: root)
+      }
+      if oldData {
+        try FileManager.default.createDirectory(at: old, withIntermediateDirectories: true)
+        try Data("history".utf8).write(to: old.appendingPathComponent("history.jsonl"))
+        defaults.setPersistentDomain(
+          [
+            "IgnoredApps": ["fixture"], "Appearance": "dark",
+            "NSWindow Frame main": "discard", "testOnly": true,
+          ], forName: oldDomain)
+      }
+      if newData {
+        try FileManager.default.createDirectory(at: new, withIntermediateDirectories: true)
+      }
+      if pending {
+        let journals = old.appendingPathComponent("transactions")
+        try FileManager.default.createDirectory(at: journals, withIntermediateDirectories: true)
+        try Data("pending".utf8).write(to: journals.appendingPathComponent("fixture.json"))
+      }
+      if oldData && newData {
+        XCTAssertThrowsError(
+          try UpkeepIdentityMigration.migrate(
+            support: root, defaults: defaults,
+            oldDomain: oldDomain, newDomain: newDomain))
+        XCTAssertTrue(
+          FileManager.default.fileExists(atPath: old.appendingPathComponent("history.jsonl").path))
+        return
+      }
+      let migrated = try UpkeepIdentityMigration.migrate(
+        support: root, defaults: defaults,
+        oldDomain: oldDomain, newDomain: newDomain)
+      XCTAssertEqual(migrated, oldData && !pending)
+      if pending {
+        XCTAssertEqual(UpkeepIdentityMigration.root(in: root).path, old.path)
+        XCTAssertEqual(
+          defaults.persistentDomain(forName: newDomain)?["Appearance"] as? String, "dark")
+        XCTAssertNotNil(defaults.persistentDomain(forName: oldDomain))
+        XCTAssertTrue(
+          FileManager.default.fileExists(
+            atPath: old.appendingPathComponent("transactions/fixture.json").path))
+      } else if oldData {
+        XCTAssertFalse(FileManager.default.fileExists(atPath: old.path))
+        XCTAssertEqual(
+          try String(contentsOf: new.appendingPathComponent("history.jsonl"), encoding: .utf8),
+          "history")
+        XCTAssertTrue((defaults.persistentDomain(forName: oldDomain) ?? [:]).isEmpty)
+        let result = defaults.persistentDomain(forName: newDomain)
+        XCTAssertEqual(result?["Appearance"] as? String, "dark")
+        XCTAssertEqual(result?["IgnoredApps"] as? [String], ["fixture"])
+        XCTAssertNil(result?["NSWindow Frame main"])
+        XCTAssertNil(result?["testOnly"])
+        XCTAssertFalse(
+          try UpkeepIdentityMigration.migrate(
+            support: root, defaults: defaults,
+            oldDomain: oldDomain, newDomain: newDomain))
+      }
+    }
+  }
+#endif

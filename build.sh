@@ -3,20 +3,20 @@
 # Usage: zsh build.sh      Output: ../Outputs/Upkeep-<version>.zip
 set -euo pipefail
 SOURCE_ROOT="${0:A:h}"
-DERIVED="${UPDATER_BUILD_DIR:-/private/tmp/updater-build}"
-OUTPUT_ROOT="${UPDATER_OUTPUT_ROOT:-$SOURCE_ROOT/../Outputs}"
+DERIVED="${UPKEEP_BUILD_DIR:-/private/tmp/upkeep-build}"
+OUTPUT_ROOT="${UPKEEP_OUTPUT_ROOT:-$SOURCE_ROOT/../Outputs}"
 TEAM="M6L2VW4W5Z"
-IDENTITY="${UPDATER_SIGN_IDENTITY:-Apple Development: Junior Nkana Bassi (SXSQY4JTTK)}"
-APP_ID="com.juniornkanabassi.Updater"
+IDENTITY="${UPKEEP_SIGN_IDENTITY:-Apple Development: Junior Nkana Bassi (SXSQY4JTTK)}"
+APP_ID="com.juniornkanabassi.Upkeep"
 HELPER_ID="$APP_ID.helper"
 PRODUCTS="$DERIVED/Build/Products/Release"
 APP="$PRODUCTS/Upkeep.app"
-HELPER="$APP/Contents/Resources/UpdaterInstaller"
+HELPER="$APP/Contents/Resources/UpkeepInstaller"
 CLI="$APP/Contents/Helpers/upkeep"
 
 # Stale products (an old App.icns, a renamed helper) must not end up in the zip.
 /bin/rm -rf "$PRODUCTS"
-/usr/bin/xcodebuild -project "$SOURCE_ROOT/Latest.xcodeproj" -scheme Updater -configuration Release \
+/usr/bin/xcodebuild -project "$SOURCE_ROOT/Upkeep.xcodeproj" -scheme Upkeep -configuration Release \
   -derivedDataPath "$DERIVED" -disableAutomaticPackageResolution -onlyUsePackageVersionsFromResolvedFile \
   CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY="$IDENTITY" DEVELOPMENT_TEAM="$TEAM" build
 
@@ -28,7 +28,7 @@ CLI="$APP/Contents/Helpers/upkeep"
 # Identity checks: bundle ID, helper signing identifier, and Junior's team on both binaries.
 plist() { /usr/libexec/PlistBuddy -c "Print $2" "$1"; }
 [[ "$(plist "$APP/Contents/Info.plist" CFBundleIdentifier)" == "$APP_ID" ]] || { print -u2 "Unexpected bundle identifier."; exit 1; }
-[[ "$(plist "$APP/Contents/Info.plist" UpdaterTeamIdentifier)" == "$TEAM" ]] || { print -u2 "Info.plist team is not $TEAM."; exit 1; }
+[[ "$(plist "$APP/Contents/Info.plist" UpkeepTeamIdentifier)" == "$TEAM" ]] || { print -u2 "Info.plist team is not $TEAM."; exit 1; }
 for binary in "$APP" "$HELPER" "$CLI"; do
   details="$(/usr/bin/codesign -dv "$binary" 2>&1)"
   [[ "$details" == *$'\n'"TeamIdentifier=$TEAM"$'\n'* ]] || { print -u2 "$binary is not signed by team $TEAM."; exit 1; }
@@ -36,7 +36,7 @@ done
 details="$(/usr/bin/codesign -dv "$HELPER" 2>&1)"
 [[ "$details" == *$'\n'"Identifier=$HELPER_ID"$'\n'* ]] || { print -u2 "Helper signing identifier is not $HELPER_ID."; exit 1; }
 # Launch constraints cannot use build-setting substitution, so check them against the team here.
-for daemon in "$APP"/Contents/Library/LaunchDaemons/*.plist; do
+for daemon in "$APP"/Contents/Library/LaunchDaemons/com.juniornkanabassi.Upkeep*.plist; do
   [[ "$(plist "$daemon" :SpawnConstraint:team-identifier)" == "$TEAM" && "$(plist "$daemon" :SpawnConstraint:signing-identifier)" == "$HELPER_ID" ]] \
     || { print -u2 "$daemon launch constraint does not match $TEAM / $HELPER_ID."; exit 1; }
 done

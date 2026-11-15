@@ -15,7 +15,7 @@ class TestConfigurationTest(unittest.TestCase):
     def setUpClass(cls):
         project = json.loads(subprocess.check_output([
             "plutil", "-convert", "json", "-o", "-",
-            str(ROOT / "Latest.xcodeproj/project.pbxproj"),
+            str(ROOT / "Upkeep.xcodeproj/project.pbxproj"),
         ]))
         cls.objects = project["objects"]
         cls.targets = {obj["name"]: obj for obj in cls.objects.values()
@@ -45,24 +45,24 @@ class TestConfigurationTest(unittest.TestCase):
                 for identifier in config_list["buildConfigurations"]]
 
     def test_unit_target_is_unhosted_and_reuses_real_production_sources(self):
-        target = self.targets["Latest Unit Tests"]
+        target = self.targets["Upkeep Unit Tests"]
         self.assertEqual(target["dependencies"], [])
         for config in self.configurations(target):
             self.assertFalse(config.get("TEST_HOST"))
             self.assertFalse(config.get("BUNDLE_LOADER"))
         sources = self.sources(target)
-        production = {ref for ref in sources if self.paths[ref].is_relative_to(ROOT / "Latest")}
+        production = {ref for ref in sources if self.paths[ref].is_relative_to(ROOT / "Upkeep")}
         self.assertTrue(production)
-        self.assertLessEqual(production, self.sources(self.targets["Latest"]))
+        self.assertLessEqual(production, self.sources(self.targets["Upkeep"]))
         for ref in sources:
             path = self.paths[ref]
             self.assertTrue(path.is_file(), path)
             self.assertNotIn("import SwiftUI", path.read_text(), path)
             if path.name != "TestOffscreenTests.swift":
                 self.assertNotIn("import AppKit", path.read_text(), path)
-        scheme = ET.parse(ROOT / "Latest.xcodeproj/xcshareddata/xcschemes/Latest Unit Tests.xcscheme")
+        scheme = ET.parse(ROOT / "Upkeep.xcodeproj/xcshareddata/xcschemes/Upkeep Unit Tests.xcscheme")
         self.assertEqual([ref.attrib["BlueprintName"] for ref in scheme.findall(".//BuildableReference")],
-                         ["Latest Unit Tests", "Latest Unit Tests"])
+                         ["Upkeep Unit Tests", "Upkeep Unit Tests"])
 
     def test_every_test_bundle_compiles_the_offscreen_guard(self):
         for target in self.targets.values():
@@ -75,17 +75,17 @@ class TestConfigurationTest(unittest.TestCase):
                                  "Tests/TestOffscreen/include/TestOffscreen.h")
 
     def test_moved_tests_have_one_owner_and_shared_fixtures_resolve_in_both_modules(self):
-        unit = self.sources(self.targets["Latest Unit Tests"])
-        hosted = self.sources(self.targets["Latest Tests"])
+        unit = self.sources(self.targets["Upkeep Unit Tests"])
+        hosted = self.sources(self.targets["Upkeep Tests"])
         shared_tests = {self.paths[ref].name for ref in unit & hosted
                         if self.paths[ref].is_relative_to(ROOT / "Tests")}
         self.assertEqual(shared_tests, {"ModelFixtures.swift", "TestOffscreen.m", "TestOffscreenTests.swift"})
-        for config in self.configurations(self.targets["Latest Tests"]):
-            self.assertIn("LATEST_HOSTED_TESTS", config["SWIFT_ACTIVE_COMPILATION_CONDITIONS"])
+        for config in self.configurations(self.targets["Upkeep Tests"]):
+            self.assertIn("UPKEEP_HOSTED_TESTS", config["SWIFT_ACTIVE_COMPILATION_CONDITIONS"])
 
     def test_hosted_plans_exclude_foreground_and_benchmarks_from_integration(self):
         def plan(name):
-            return json.loads((ROOT / f"Tests/Latest{name}.xctestplan").read_text())
+            return json.loads((ROOT / f"Tests/Upkeep{name}.xctestplan").read_text())
 
         integration, ui = plan("Integration"), plan("UI")
         selected_ui = set(ui["testTargets"][0]["selectedTests"])
@@ -98,11 +98,11 @@ class TestConfigurationTest(unittest.TestCase):
                                  ("AppBenchmarks", "1"), ("ComplexityBenchmarks", "0")):
             data = plan(name)
             self.assertEqual(data["defaultOptions"]["environmentVariableEntries"],
-                             [{"key": "LATEST_UI_TESTS", "value": foreground}])
-        scheme = ET.parse(ROOT / "Latest.xcodeproj/xcshareddata/xcschemes/Updater.xcscheme")
+                             [{"key": "UPKEEP_UI_TESTS", "value": foreground}])
+        scheme = ET.parse(ROOT / "Upkeep.xcodeproj/xcshareddata/xcschemes/Upkeep.xcscheme")
         references = scheme.findall(".//TestPlanReference")
         self.assertEqual([ref.attrib["reference"] for ref in references if ref.attrib.get("default") == "YES"],
-                         ["container:Tests/LatestIntegration.xctestplan"])
+                         ["container:Tests/UpkeepIntegration.xctestplan"])
         for ref in references:
             self.assertTrue((ROOT / ref.attrib["reference"].removeprefix("container:")).is_file())
 

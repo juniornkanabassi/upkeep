@@ -16,7 +16,7 @@ for argument in "$@"; do
       target="${argument#*:}"
       target="${target%%/*}"
       case "$target" in
-        'Latest Unit Tests'|'Latest Tests') ;;
+        'Upkeep Unit Tests'|'Upkeep Tests') ;;
         *) echo "Unknown test target: $target" >&2; exit 2 ;;
       esac
       FILTERS+=("$argument")
@@ -31,8 +31,8 @@ for argument in "$@"; do
 done
 
 if [[ "$MODE" != all ]]; then
-  expected_target='Latest Tests'
-  [[ "$MODE" != unit ]] || expected_target='Latest Unit Tests'
+  expected_target='Upkeep Tests'
+  [[ "$MODE" != unit ]] || expected_target='Upkeep Unit Tests'
   for filter in ${FILTERS[@]+"${FILTERS[@]}"}; do
     target="${filter#*:}"
     target="${target%%/*}"
@@ -44,11 +44,11 @@ if [[ "$MODE" != all ]]; then
 fi
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-BUILD_DIR="${UPDATER_BUILD_DIR:-$ROOT_DIR/build}" # override to keep build products out of iCloud-synced folders
+BUILD_DIR="${UPKEEP_BUILD_DIR:-$ROOT_DIR/build}" # override to keep build products out of iCloud-synced folders
 DERIVED_DATA="$BUILD_DIR/DerivedData"
 MODULE_CACHE="$BUILD_DIR/ModuleCache"
-export TEST_RUNNER_UPDATER_BUILD_DIR="$BUILD_DIR"
-export TEST_RUNNER_UPDATER_SNAPSHOT_DIR="${UPDATER_SNAPSHOT_DIR:-$BUILD_DIR/snapshots}"
+export TEST_RUNNER_UPKEEP_BUILD_DIR="$BUILD_DIR"
+export TEST_RUNNER_UPKEEP_SNAPSHOT_DIR="${UPKEEP_SNAPSHOT_DIR:-$BUILD_DIR/snapshots}"
 RUN_ID="$(date +%Y%m%d-%H%M%S)-$$"
 mkdir -p "$BUILD_DIR" "$MODULE_CACHE"
 # Isolate every test host from the owner's preferences, saved state and temporary data.
@@ -56,13 +56,13 @@ TEST_HOME="$(mktemp -d "$BUILD_DIR/test-home.XXXXXX")"
 mkdir -p "$TEST_HOME/Library/Preferences" "$TEST_HOME/tmp" "$TEST_HOME/data"
 export TEST_RUNNER_CFFIXED_USER_HOME="$TEST_HOME"
 export TEST_RUNNER_TMPDIR="$TEST_HOME/tmp/"
-export TEST_RUNNER_UPDATER_HOME="$TEST_HOME/data"
+export TEST_RUNNER_UPKEEP_HOME="$TEST_HOME/data"
 
 # cfprefsd can recreate empty plists as the test process exits. Remove only the
 # UUID suites this invocation records, after every test writer has stopped.
 DEFAULTS_MANIFEST="$(mktemp "$BUILD_DIR/test-defaults.XXXXXX")"
-export UPDATER_TEST_DEFAULTS_MANIFEST="$DEFAULTS_MANIFEST"
-export TEST_RUNNER_UPDATER_TEST_DEFAULTS_MANIFEST="$DEFAULTS_MANIFEST"
+export UPKEEP_TEST_DEFAULTS_MANIFEST="$DEFAULTS_MANIFEST"
+export TEST_RUNNER_UPKEEP_TEST_DEFAULTS_MANIFEST="$DEFAULTS_MANIFEST"
 cleanup_test_defaults() {
   local result=$?
   /usr/bin/python3 - "$DEFAULTS_MANIFEST" "$TEST_HOME" <<'PY_CLEANUP' || result=1
@@ -85,17 +85,17 @@ for name in set(manifest.read_text().splitlines()):
         (home / "Library/Preferences" / (name + ".plist")).unlink(missing_ok=True)
 manifest.unlink()
 # App-hosted tests share the app's bundle ID, so their window autosave frames
-# ("... latest-test-<UUID> ...") land in the real Updater domain; remove only those keys.
+# ("... upkeep-test-<UUID> ...") land in the real Upkeep domain; remove only those keys.
 import plistlib
 for home in (test_home, Path.home()):
     env = dict(os.environ, CFFIXED_USER_HOME=str(home))
-    exported = subprocess.run(["/usr/bin/defaults", "export", "com.juniornkanabassi.Updater", "-"],
+    exported = subprocess.run(["/usr/bin/defaults", "export", "com.juniornkanabassi.Upkeep", "-"],
                               capture_output=True, env=env).stdout
     if not exported:
         continue
     for key in plistlib.loads(exported):
-        if "latest-test-" in key:
-            subprocess.run(["/usr/bin/defaults", "delete", "com.juniornkanabassi.Updater", key],
+        if "upkeep-test-" in key:
+            subprocess.run(["/usr/bin/defaults", "delete", "com.juniornkanabassi.Upkeep", key],
                            capture_output=True, env=env)
 PY_CLEANUP
   /bin/rm -rf "$TEST_HOME"
@@ -105,23 +105,23 @@ trap cleanup_test_defaults EXIT
 
 /usr/bin/python3 -m unittest discover -s "$ROOT_DIR/script/tests"
 "$ROOT_DIR/script/check_structure.sh"
-"$ROOT_DIR/script/grid-lint.sh" "$ROOT_DIR/Latest"
+"$ROOT_DIR/script/grid-lint.sh" "$ROOT_DIR/Upkeep"
 
 run_lane() {
-  local lane="$1" scheme='Updater' target='Latest Tests'
+  local lane="$1" scheme='Upkeep' target='Upkeep Tests'
   local arguments=() filter selected_target has_selection=false
-  export TEST_RUNNER_LATEST_UI_TESTS=0
-  export LATEST_UI_TESTS=0
+  export TEST_RUNNER_UPKEEP_UI_TESTS=0
+  export UPKEEP_UI_TESTS=0
   if [[ "$lane" == unit ]]; then
-    scheme='Latest Unit Tests'
-    target='Latest Unit Tests'
+    scheme='Upkeep Unit Tests'
+    target='Upkeep Unit Tests'
   else
-    arguments+=(-testPlan LatestIntegration)
+    arguments+=(-testPlan UpkeepIntegration)
     if [[ "$lane" == ui ]]; then
       # Plan names use the acronym rather than title case.
-      arguments=(-testPlan LatestUI)
-      export TEST_RUNNER_LATEST_UI_TESTS=1
-      export LATEST_UI_TESTS=1
+      arguments=(-testPlan UpkeepUI)
+      export TEST_RUNNER_UPKEEP_UI_TESTS=1
+      export UPKEEP_UI_TESTS=1
     fi
   fi
   for selected_target in ${ONLY_TARGETS[@]+"${ONLY_TARGETS[@]}"}; do
@@ -138,12 +138,12 @@ run_lane() {
   echo "Running $lane tests (coverage=$COVERAGE)"
 
   xcodebuild \
-    -project "$ROOT_DIR/Latest.xcodeproj" \
+    -project "$ROOT_DIR/Upkeep.xcodeproj" \
     -scheme "$scheme" \
     -configuration Debug \
     -destination 'platform=macOS' \
     -derivedDataPath "$DERIVED_DATA" \
-    -resultBundlePath "$BUILD_DIR/Latest-Tests-$lane-$RUN_ID.xcresult" \
+    -resultBundlePath "$BUILD_DIR/Upkeep-Tests-$lane-$RUN_ID.xcresult" \
     -disableAutomaticPackageResolution \
     -onlyUsePackageVersionsFromResolvedFile \
     CLANG_MODULE_CACHE_PATH="$MODULE_CACHE" \

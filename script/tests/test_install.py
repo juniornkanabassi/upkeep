@@ -21,14 +21,14 @@ class InstallLayoutTest(unittest.TestCase):
         (app / "MacOS").mkdir(parents=True)
         (app / "Helpers").mkdir()
         (app / "Info.plist").write_bytes(plistlib.dumps(
-            {"CFBundleIdentifier": "com.juniornkanabassi.Updater"}))
+            {"CFBundleIdentifier": "com.juniornkanabassi.Upkeep"}))
         for path in (app / "MacOS" / executable, app / "Helpers" / cli):
             path.write_text("#!/bin/sh\n")
             path.chmod(0o755)
         return app.parent
 
     def install(self, app):
-        environment = {"PATH": "/usr/bin:/bin", "UPDATER_INSTALL_ROOT": str(self.target),
+        environment = {"PATH": "/usr/bin:/bin", "UPKEEP_INSTALL_ROOT": str(self.target),
                        "HOME": str(self.root)}
         return subprocess.run(["/bin/zsh", str(INSTALL), str(app)], env=environment,
                               capture_output=True, text=True, timeout=30)
@@ -47,6 +47,17 @@ class InstallLayoutTest(unittest.TestCase):
         self.assertNotIn("not an Upkeep build", result.stderr)
         self.assertIn("not signed", result.stderr)
         self.assertEqual(list(self.target.iterdir()), [])
+
+    def test_legacy_cleanup_is_guarded_and_uses_only_exact_paths(self):
+        script = INSTALL.read_text()
+        cleanup = script.index('do shell script')
+        self.assertLess(script.index('if [[ -z "${UPKEEP_INSTALL_ROOT:-}" ]]'), cleanup)
+        self.assertLess(script.index('Pending Updater transactions remain'), cleanup)
+        self.assertLess(script.index('/usr/bin/pgrep -x installer'), cleanup)
+        self.assertIn('/Library/PrivilegedHelperTools/com.juniornkanabassi.Updater.helper', script)
+        self.assertIn('/Library/LaunchDaemons/com.juniornkanabassi.Updater.helper.plist', script)
+        self.assertIn('with administrator privileges', script)
+        self.assertNotIn('backgroundtaskmanagement', script)
 
 
 if __name__ == "__main__":

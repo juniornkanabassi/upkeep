@@ -24,7 +24,7 @@ class SnapshotGateTest(unittest.TestCase):
         for page in gate.PAGES:
             for mode, colour in [('light', 255), ('dark', 0)]:
                 (self.root / f'{page}-{mode}.png').write_bytes(png(colour))
-        (self.root / 'menu-bar.txt').write_text('Check Now\nQuit Updater\n')
+        (self.root / 'menu-bar.txt').write_text('Check Now\nQuit Upkeep\n')
 
     def test_full_paired_inventory_passes(self):
         gate.check(self.root)

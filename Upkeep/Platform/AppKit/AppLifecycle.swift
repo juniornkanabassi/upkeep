@@ -1,0 +1,128 @@
+// Copyright © 2026 Junior Nkana Bassi. Licensed under GPL-3.0; see LICENSE.md.
+// Extracted from DownloadUpdateOperation so every installer Upkeep drives shares one quit path.
+
+import AppKit
+
+/// Quits the app at an exact URL before an install and reopens it afterwards if it was
+/// running. Quit is a polite request: the app keeps its save prompts, and Upkeep never
+/// force-kills. If it refuses or times out, nothing is installed.
+struct AppLifecycle: Sendable {
+  struct RunningApp: Sendable {
+    let terminate: @MainActor @Sendable () -> Void
+    let isTerminated: @MainActor @Sendable () -> Bool
+  }
+
+  var runningApps: @MainActor @Sendable (URL) -> [RunningApp]
+  var confirmQuit: @MainActor @Sendable (_ appName: String) -> Bool
+  var reopen: @MainActor @Sendable (URL) -> Void
+  var timeout: Duration = .seconds(20)
+  /// Checked right before quitting or installing; false stops the job with nothing changed.
+  var mayProceed: @MainActor @Sendable () -> Bool = { true }
+  /// Launches the app and returns once macOS has, or throws its error.
+  var launch: @MainActor @Sendable (URL) async throws -> Void = { url in
+    _ = try await NSWorkspace.shared.openApplication(
+      at: url, configuration: NSWorkspace.OpenConfiguration())
+  }
+
+  static let live = AppLifecycle(
+    runningApps: { url in
+      NSWorkspace.shared.runningApplications
+        .filter { $0.bundleURL?.standardizedFileURL == url.standardizedFileURL }
+        .map { app in
+          RunningApp(terminate: { _ = app.terminate() }, isTerminated: { app.isTerminated })
+        }
+    },
+    confirmQuit: { name in
+      let alert = NSAlert()
+      alert.messageText = "Quit \(name) to install its update?"
+      alert.informativeText = "Save your work first. The app will reopen after the update."
+      alert.addButton(withTitle: "Quit and Update")
+      alert.addButton(withTitle: "Cancel")
+      // Nobody answering (a job started from the CLI while away) counts as Cancel, so the job
+      // ends as needsQuit instead of holding its tool lock for ever.
+      let timeout = Timer(timeInterval: 300, repeats: false) { _ in
+        MainActor.assumeIsolated { NSApp.abortModal() }
+      }
+      RunLoop.main.add(timeout, forMode: .modalPanel)
+      defer { timeout.invalidate() }
+      return alert.runModal() == .alertFirstButtonReturn
+    },
+    reopen: { MacApplicationWorkspace.shared.openApplication(at: $0) })
+
+  @MainActor
+  func withApplicationClosed(
+    at url: URL, name: String, _ install: @Sendable () async throws -> Void
+  ) async throws {
+    try Task.checkCancellation()
+    guard mayProceed() else { throw CancellationError() }
+    let running = runningApps(url)
+    if !running.isEmpty, !confirmQuit(name) { throw CancellationError() }
+    try await ApplicationQuitLifecycle.run(
+      terminate: { running.forEach { $0.terminate() } },
+      isTerminated: { running.allSatisfy { $0.isTerminated() } },
+      reopen: {
+        guard !running.isEmpty, FileManager.default.fileExists(atPath: url.path) else { return }
+        reopen(url)
+      },
+      install: install,
+      timeout: timeout)
+  }
+}
+
+extension AppLifecycle {
+  /// An automatic update never asks to quit a running app, and stops unless it is still
+  /// eligible (closed, not ignored, automatic updates still on) right before installing.
+  func automatic(_ policy: AutomaticUpdatePolicy) -> AppLifecycle {
+    var copy = self
+    copy.confirmQuit = { _ in false }
+    copy.mayProceed = { policy.stillEligible() }
+    return copy
+  }
+
+  /// Quits the app for an installer that relaunches it itself (Sparkle). Throws if the
+  /// user declines or the app is still open at the timeout. Never force-kills.
+  /// Returns whether the app was running, so the caller can reopen it afterwards.
+  @MainActor @discardableResult
+  func quit(at url: URL, name: String) async throws -> Bool {
+    guard mayProceed() else { throw CancellationError() }
+    let running = runningApps(url)
+    guard !running.isEmpty else { return false }
+    guard confirmQuit(name) else { throw CancellationError() }
+    running.forEach { $0.terminate() }
+    let deadline = ContinuousClock.now + timeout
+    while !running.allSatisfy({ $0.isTerminated() }) {
+      guard ContinuousClock.now < deadline else { throw AppDownloadError.applicationStillRunning }
+      try? await Task.sleep(for: .milliseconds(200))
+    }
+    return true
+  }
+}
+
+/// Quit cannot be recalled after sending terminate(). Wait for its outcome even
+/// after cancellation, then reopen the surviving app without starting an install.
+@MainActor
+enum ApplicationQuitLifecycle {
+  static func run(
+    terminate: () -> Void,
+    isTerminated: @escaping @MainActor @Sendable () -> Bool,
+    reopen: () -> Void,
+    install: @Sendable () async throws -> Void,
+    timeout: Duration = .seconds(20)
+  ) async throws {
+    // Confirmation can run a nested event loop where cancellation is accepted.
+    try Task.checkCancellation()
+    defer { if isTerminated() { reopen() } }
+    terminate()
+    let terminated = await Task { @MainActor in
+      let deadline = ContinuousClock.now + timeout
+      while ContinuousClock.now < deadline {
+        if isTerminated() { return true }
+        try? await Task.sleep(for: .milliseconds(200))
+      }
+      return isTerminated()
+    }.value
+    guard terminated else { throw AppDownloadError.applicationStillRunning }
+    try Task.checkCancellation()
+    try await install()
+  }
+}

@@ -5,7 +5,7 @@ import Synchronization
 import UserNotifications
 import XCTest
 
-@testable import Latest
+@testable import Upkeep
 
 /// Background checks, notifications and permissions, all with injected clocks and probes:
 /// nothing here posts a notification, opens System Settings or touches a real app.
@@ -108,7 +108,7 @@ final class BackgroundTest: XCTestCase {
     await finished([warpNext, goodnotes], .background)
     XCTAssertEqual(notifier.posts.last?.body, "Warp", "a newer version is new again")
 
-    // Sol R4-002: an app installed while Updater runs is found by the folder watcher, and
+    // Sol R4-002: an app installed while Upkeep runs is found by the folder watcher, and
     // its update is announced rather than silently marked as seen.
     let zoom = makeTestApp(name: "Zoom", version: "1", remoteVersion: "2")
     await finished([warpNext, goodnotes, zoom], .filesystem)
@@ -120,7 +120,7 @@ final class BackgroundTest: XCTestCase {
   /// before the first throttled snapshot is still reported, with its origin.
   func testFastChecksReportCompletionWithTheirOrigin() async throws {
     let coordinator = UpdateCheckCoordinator(
-      check: { _, _ in throw LatestError.updateInfoUnavailable }, repositoryProvider: { nil })
+      check: { _, _ in throw UpkeepError.updateInfoUnavailable }, repositoryProvider: { nil })
     var completions = [UpdateCheckCompletion]()
     coordinator.checkCompletion = { completions.append($0) }
     let root = try disposableDirectory()
@@ -158,7 +158,7 @@ final class BackgroundTest: XCTestCase {
       check: { bundle, _ in
         // The first discovery's check is still running when the second discovery begins.
         if bundle.fileURL == firstURL { for await _ in gate.stream {} }
-        throw LatestError.updateInfoUnavailable
+        throw UpkeepError.updateInfoUnavailable
       }, repositoryProvider: { nil })
     var completions = [UpdateCheckCompletion]()
     coordinator.checkCompletion = { completions.append($0) }

@@ -2,13 +2,13 @@ import Sparkle
 import Synchronization
 import XCTest
 
-@testable import Latest
+@testable import Upkeep
 
 @MainActor
 final class SparkleUpdateOperationTest: XCTestCase {
   func testDownloadProgressCoalescesAndUsesLatestByteCounts() async {
     let operation = makeOperation()
-    let published = expectation(description: "Latest download totals")
+    let published = expectation(description: "Upkeep download totals")
     operation.progressHandler = { [weak operation] _ in
       guard
         case .downloading(let received, let expected, let cancellable) = operation?.progressState
@@ -103,7 +103,7 @@ final class SparkleUpdateOperationTest: XCTestCase {
     let operation = makeOperation()
     let notices = Mutex(0)
     let observer = NotificationCenter.default.addObserver(
-      forName: .latestUpdateOperationDidFinish, object: operation, queue: nil
+      forName: .upkeepUpdateOperationDidFinish, object: operation, queue: nil
     ) { _ in notices.withLock { $0 += 1 } }
     defer { NotificationCenter.default.removeObserver(observer) }
     operation.showReady { XCTAssertEqual($0, .install) }
@@ -125,7 +125,7 @@ final class SparkleUpdateOperationTest: XCTestCase {
       let operation = makeOperation()
       let notices = Mutex(0)
       let observer = NotificationCenter.default.addObserver(
-        forName: .latestUpdateOperationDidFinish, object: operation, queue: nil
+        forName: .upkeepUpdateOperationDidFinish, object: operation, queue: nil
       ) { _ in notices.withLock { $0 += 1 } }
       defer { NotificationCenter.default.removeObserver(observer) }
       // Sparkle can replace a closed target before its stage-two callback arrives.
@@ -255,9 +255,9 @@ final class SparkleUpdateOperationTest: XCTestCase {
     await fulfillment(of: [done], timeout: 3)
   }
 
-  /// Sol R1 (second pass): Updater clones the target before Sparkle commits and restores it
+  /// Sol R1 (second pass): Upkeep clones the target before Sparkle commits and restores it
   /// if Sparkle leaves anything but the advertised (or newer) version of the same product.
-  func testSparkleResultIsVerifiedAgainstUpdatersOwnClone() async throws {
+  func testSparkleResultIsVerifiedAgainstUpkeepsOwnClone() async throws {
     for (installed, expectRestore) in [("1.1", true), ("1.2", false)] {
       let root = try disposableDirectory()
       let app = try FixtureApp.make(in: root, version: "1.0")
@@ -360,7 +360,7 @@ final class SparkleUpdateOperationTest: XCTestCase {
   }
 
   /// Sol R1 + R6 (second pass): a relaunched bad version is quit before the clone goes back,
-  /// and the app Updater quit is reopened exactly once after a restore or an error, but not
+  /// and the app Upkeep quit is reopened exactly once after a restore or an error, but not
   /// when Sparkle already relaunched it.
   func testQuitTargetIsReopenedOnceAfterFailureButNotAfterRelaunch() async throws {
     // Relaunched with a bad version: quit it, restore, reopen once.

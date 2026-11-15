@@ -16,10 +16,10 @@ elif [[ -z "$CATALOG_PATH" || ! -f "$CATALOG_PATH" ]]; then
 fi
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SOURCE_CATALOG="$ROOT_DIR/Latest/Resources/ReleaseNotesSources.json"
+SOURCE_CATALOG="$ROOT_DIR/Upkeep/Resources/ReleaseNotesSources.json"
 CATALOG_TOKENS="$(jq '[.[].homebrewTokens[]?] | unique' "$SOURCE_CATALOG")"
-MINIMUM_HIGH_CONFIDENCE_PERCENT="${LATEST_MIN_RELEASE_NOTES_COVERAGE_PERCENT:-40}"
-MINIMUM_CATALOG_UNIQUE="${LATEST_MIN_RELEASE_NOTES_CATALOG_UNIQUE:-110}"
+MINIMUM_HIGH_CONFIDENCE_PERCENT="${UPKEEP_MIN_RELEASE_NOTES_COVERAGE_PERCENT:-40}"
+MINIMUM_CATALOG_UNIQUE="${UPKEEP_MIN_RELEASE_NOTES_CATALOG_UNIQUE:-110}"
 
 REPORT="$(jq --argjson catalogTokens "$CATALOG_TOKENS" '
   [ .[] | select(any(.artifacts[]?; type == "object" and has("app"))) ] as $apps |

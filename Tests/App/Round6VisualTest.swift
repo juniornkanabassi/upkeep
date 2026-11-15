@@ -5,7 +5,7 @@ import SwiftUI
 import WebKit
 import XCTest
 
-@testable import Latest
+@testable import Upkeep
 
 /// Renders production surfaces in transparent windows (never visible or activated) and checks
 /// each render has content. PNGs are written under the isolated build directory.
@@ -13,8 +13,8 @@ import XCTest
 final class Round6VisualTest: XCTestCase {
   static let outputDirectory: URL? = {
     let environment = ProcessInfo.processInfo.environment
-    if let path = environment["UPDATER_SNAPSHOT_DIR"] { return URL(fileURLWithPath: path) }
-    return environment["UPDATER_BUILD_DIR"].map {
+    if let path = environment["UPKEEP_SNAPSHOT_DIR"] { return URL(fileURLWithPath: path) }
+    return environment["UPKEEP_BUILD_DIR"].map {
       URL(fileURLWithPath: $0).appendingPathComponent("snapshots")
     }
   }()
@@ -32,7 +32,7 @@ final class Round6VisualTest: XCTestCase {
     let process = ProcessInfo.processInfo.environment
     let isolation = [
       "fixedHome": process["CFFIXED_USER_HOME"] ?? "unset",
-      "controlHome": process["UPDATER_HOME"] ?? "unset",
+      "controlHome": process["UPKEEP_HOME"] ?? "unset",
       "temporaryDirectory": FileManager.default.temporaryDirectory.path,
     ]
     try write(
@@ -65,7 +65,8 @@ final class Round6VisualTest: XCTestCase {
     model.startObserving()
     defer { model.stopObserving() }
     try await Task.sleep(for: .milliseconds(200))
-    XCTAssertEqual(model.selectedApp?.name, "Audio Hijack", "The first update (Updating now) is selected")
+    XCTAssertEqual(
+      model.selectedApp?.name, "Audio Hijack", "The first update (Updating now) is selected")
 
     let historyURL = FileManager.default.temporaryDirectory.appendingPathComponent(
       "round6-\(UUID().uuidString).jsonl")
@@ -74,7 +75,7 @@ final class Round6VisualTest: XCTestCase {
     for dark in [false, true] {
       let suffix = dark ? "dark" : "light"
       try await render(
-        LatestRootView(
+        UpkeepRootView(
           environment: environment,
           detailViewModel: ReleaseNotesDetailViewModel(
             releaseNotesProvider: SnapshotNotesProvider()),
@@ -93,7 +94,8 @@ final class Round6VisualTest: XCTestCase {
       model.select(selected)
     }
 
-    try await renderRound8(environment: environment, model: model, fixture: fixture, history: history)
+    try await renderRound8(
+      environment: environment, model: model, fixture: fixture, history: history)
 
     let detail = CGSize(width: 560, height: 420)
     let goodnotes = try XCTUnwrap(store.apps.first { $0.name == "Goodnotes" })
@@ -116,13 +118,13 @@ final class Round6VisualTest: XCTestCase {
         }, size: CGSize(width: 560, height: 200), dark: dark, name: "update-confirmation-\(suffix)")
       for name in [
         "Shottr", "Goodnotes", "Adobe Premiere Pro 2026", "Discord", "OBS", "Google Chrome",
-        "Final Cut Pro", "Updater", "Raycast", "Audio Hijack",
+        "Final Cut Pro", "Upkeep", "Raycast", "Audio Hijack",
       ] {
         let app = try XCTUnwrap(store.apps.first { $0.name == name })
         try await render(
           ReleaseNotesDetailSurface(
             app: app,
-            contentState: .message(ReleaseNotesMessage(error: LatestError.releaseNotesUnavailable)),
+            contentState: .message(ReleaseNotesMessage(error: UpkeepError.releaseNotesUnavailable)),
             updating: fixture.updating, history: history),
           size: detail, dark: dark,
           name: "detail-\(name.lowercased().replacingOccurrences(of: " ", with: "-"))-\(suffix)")
@@ -222,15 +224,15 @@ final class Round6VisualTest: XCTestCase {
   func testUpToDateIsClaimedOnlyWhenEveryCheckSucceeded() throws {
     let current = makeTestApp(name: "Current", version: "2", remoteVersion: "2")
     let failedBundle = makeTestApp(name: "Failed", version: "1").bundle
-    let failed = Latest.App(
-      bundle: failedBundle, update: .failure(LatestError.updateInfoUnavailable), isIgnored: false)
+    let failed = Upkeep.App(
+      bundle: failedBundle, update: .failure(UpkeepError.updateInfoUnavailable), isIgnored: false)
     let adobe = makeTestApp(
       name: "Premiere", version: "26", remoteVersion: "26",
       updateAction: .external(label: "Creative Cloud") { _ in })
-    let unknown = Latest.App(
+    let unknown = Upkeep.App(
       bundle: adobe.bundle,
       update: .success(
-        Latest.App.Update(
+        Upkeep.App.Update(
           app: adobe.bundle, remoteVersion: adobe.bundle.version, minimumOSVersion: nil,
           source: .vendor, date: nil, releaseNotes: nil,
           updateAction: .external(label: "Creative Cloud") { _ in }, availabilityUnknown: true)),
@@ -269,10 +271,10 @@ final class Round6VisualTest: XCTestCase {
         .hasPrefix("Opened App Store"))
     let blocked = entry(
       .init(
-        destination: "App Store", reason: "Updater can't target this copy.", opened: false,
+        destination: "App Store", reason: "Upkeep can't target this copy.", opened: false,
         blockedByPolicy: true))
     XCTAssertFalse(blocked.contains("Opened"), blocked)
-    XCTAssertTrue(blocked.contains("Updater can't target this copy."), blocked)
+    XCTAssertTrue(blocked.contains("Upkeep can't target this copy."), blocked)
     XCTAssertFalse(entry(nil).contains("Opened"), "Records from before 0.7.0 never claim opened")
   }
 
@@ -297,7 +299,7 @@ final class Round6VisualTest: XCTestCase {
     environment: AppEnvironment, model: UpdatesListViewModel, fixture: Round6Fixture,
     history: UpdateHistoryStore
   ) async throws {
-    func app(_ name: String) throws -> Latest.App {
+    func app(_ name: String) throws -> Upkeep.App {
       try XCTUnwrap(fixture.store.apps.first { $0.name == name })
     }
     let running = try app("Audio Hijack")
@@ -305,7 +307,8 @@ final class Round6VisualTest: XCTestCase {
     AgentActivity.shared.attach(running.fileURL.path, caller: "mcp-claude-code-2")
     defer { _ = AgentActivity.shared.finish(running.fileURL.path) }
     try fixture.preferences.set(.autoUpdate, true, for: try app("Goodnotes"), caller: "gui")
-    try fixture.preferences.set(.ignore, true, for: try app("Rectangle"), caller: "mcp-claude-code-2")
+    try fixture.preferences.set(
+      .ignore, true, for: try app("Rectangle"), caller: "mcp-claude-code-2")
     var updated = UpdateHistoryEntry(
       before: try app("Notion").bundle, after: try app("Notion").bundle,
       outcome: .updated(from: "4.18.0", to: "4.19.2"))
@@ -320,7 +323,9 @@ final class Round6VisualTest: XCTestCase {
     history.record(
       UpdateHistoryEntry(
         before: try app("Discord").bundle, after: try app("Discord").bundle,
-        outcome: .failed(reason: "The new copy failed the signature check. 0.0.351 is still installed", logPath: nil)))
+        outcome: .failed(
+          reason: "The new copy failed the signature check. 0.0.351 is still installed",
+          logPath: nil)))
     try await Task.sleep(for: .milliseconds(150))
 
     let pages: [(LibraryPage, String?, String)] = [
@@ -334,9 +339,10 @@ final class Round6VisualTest: XCTestCase {
         model.page = page
         if let selection { model.select(try app(selection)) }
         try await render(
-          LatestRootView(
+          UpkeepRootView(
             environment: environment,
-            detailViewModel: ReleaseNotesDetailViewModel(releaseNotesProvider: SnapshotNotesProvider()),
+            detailViewModel: ReleaseNotesDetailViewModel(
+              releaseNotesProvider: SnapshotNotesProvider()),
             history: history),
           size: CGSize(width: 1360, height: 900), dark: dark, window: true, mainScene: true,
           name: "\(name)-\(suffix)")
@@ -344,9 +350,10 @@ final class Round6VisualTest: XCTestCase {
       model.page = .updates
       model.select(try app("Goodnotes"))
       try await render(
-        LatestRootView(
+        UpkeepRootView(
           environment: environment,
-          detailViewModel: ReleaseNotesDetailViewModel(releaseNotesProvider: SnapshotNotesProvider()),
+          detailViewModel: ReleaseNotesDetailViewModel(
+            releaseNotesProvider: SnapshotNotesProvider()),
           history: history),
         size: CGSize(width: 960, height: 600), dark: dark, window: true, mainScene: true,
         name: "page-small-window-\(suffix)")
@@ -358,8 +365,12 @@ final class Round6VisualTest: XCTestCase {
       let groups = UninstallSheetModel.groups([
         Self.item("/Applications/AlDente.app", 26_000_000, .app),
         Self.item("~/Library/Caches/com.apphousekitchen.aldente-pro", 140_000, .cache),
-        Self.item("/Library/LaunchDaemons/com.apphousekitchen.aldente-pro.helper.plist", 2_000, .launchAgent, admin: true),
-        Self.item("/Library/PrivilegedHelperTools/com.apphousekitchen.aldente-pro.helper", 466_000, .system, admin: true),
+        Self.item(
+          "/Library/LaunchDaemons/com.apphousekitchen.aldente-pro.helper.plist", 2_000,
+          .launchAgent, admin: true),
+        Self.item(
+          "/Library/PrivilegedHelperTools/com.apphousekitchen.aldente-pro.helper", 466_000, .system,
+          admin: true),
         Self.item("~/Library/Application Support/AlDente", 3_100_000, .data, personal: true),
       ])
       let aldente = try app("Goodnotes")
@@ -370,7 +381,9 @@ final class Round6VisualTest: XCTestCase {
         UninstallSheet(
           model: UninstallSheetModel(
             app: aldente, groups: groups,
-            note: "Nothing was removed, because the password request was cancelled. Untick Background helper to remove the rest without your password."),
+            note:
+              "Nothing was removed, because the password request was cancelled. Untick Background helper to remove the rest without your password."
+          ),
           dismiss: {}),
         size: CGSize(width: 620, height: 720), dark: dark, name: "uninstall-cancelled-\(suffix)")
       try await render(
@@ -379,8 +392,12 @@ final class Round6VisualTest: XCTestCase {
             app: aldente, groups: groups,
             phase: .result([
               .init(path: "/Applications/AlDente.app", removed: true, message: nil),
-              .init(path: "/Library/PrivilegedHelperTools/com.apphousekitchen.aldente-pro.helper", removed: true, message: nil),
-              .init(path: "~/Library/Caches/com.apphousekitchen.aldente-pro", removed: false, message: "The file is locked. It stayed where it was."),
+              .init(
+                path: "/Library/PrivilegedHelperTools/com.apphousekitchen.aldente-pro.helper",
+                removed: true, message: nil),
+              .init(
+                path: "~/Library/Caches/com.apphousekitchen.aldente-pro", removed: false,
+                message: "The file is locked. It stayed where it was."),
             ])), dismiss: {}),
         size: CGSize(width: 620, height: 420), dark: dark, name: "uninstall-result-\(suffix)")
       try await render(
@@ -415,7 +432,7 @@ final class Round6VisualTest: XCTestCase {
     let controller = NSHostingController(rootView: root)
     let host: NSWindow
     if mainScene {
-      host = try await makeLatestTestWindow(
+      host = try await makeUpkeepTestWindow(
         content: root, dark: dark, activate: false, testCase: self)
     } else {
       host = NSWindow(
@@ -482,21 +499,21 @@ final class Round6VisualTest: XCTestCase {
 
 /// Fixed update states per app, so failures and progress render without running anything.
 private final class Round6Updating: AppUpdating {
-  let states: [Latest.App.Bundle.Identifier: UpdateProgressState]
-  init(states: [Latest.App.Bundle.Identifier: UpdateProgressState]) { self.states = states }
-  func isUpdating(_ app: Latest.App) -> Bool {
+  let states: [Upkeep.App.Bundle.Identifier: UpdateProgressState]
+  init(states: [Upkeep.App.Bundle.Identifier: UpdateProgressState]) { self.states = states }
+  func isUpdating(_ app: Upkeep.App) -> Bool {
     guard let state = states[app.identifier] else { return false }
     if case .none = state { return false }
     if case .error = state { return false }
     return true
   }
-  func update(_ app: Latest.App, isBulkUpdate: Bool) {}
-  func cancel(_ app: Latest.App) {}
-  @MainActor func retryTermination(_ app: Latest.App) {}
-  func state(for identifier: Latest.App.Bundle.Identifier) -> UpdateProgressState {
+  func update(_ app: Upkeep.App, isBulkUpdate: Bool) {}
+  func cancel(_ app: Upkeep.App) {}
+  @MainActor func retryTermination(_ app: Upkeep.App) {}
+  func state(for identifier: Upkeep.App.Bundle.Identifier) -> UpdateProgressState {
     states[identifier] ?? .none
   }
-  @MainActor func states(for identifier: Latest.App.Bundle.Identifier) -> AsyncStream<
+  @MainActor func states(for identifier: Upkeep.App.Bundle.Identifier) -> AsyncStream<
     UpdateProgressState
   > {
     let state = state(for: identifier)
@@ -505,7 +522,7 @@ private final class Round6Updating: AppUpdating {
       $0.finish()
     }
   }
-  @MainActor func stateChanges(for identifier: Latest.App.Bundle.Identifier) -> UpdateStateFeed {
+  @MainActor func stateChanges(for identifier: Upkeep.App.Bundle.Identifier) -> UpdateStateFeed {
     (state(for: identifier), states(for: identifier))
   }
 }
@@ -520,38 +537,38 @@ private struct Round6Fixture {
 
   init(defaults: UserDefaults) {
     coordinator = SnapshotCoordinator(defaults: defaults)
-    var states = [Latest.App.Bundle.Identifier: UpdateProgressState]()
+    var states = [Upkeep.App.Bundle.Identifier: UpdateProgressState]()
     guard let store = coordinator.appProvider as? AppDataStore else {
       preconditionFailure("UpdateCheckCoordinator publishes an AppDataStore")
     }
     self.store = store
     func add(
-      _ name: String, path: String, version: String, remote: String?, source: Latest.App.Source,
-      bundleID: String? = nil, action: Latest.App.Update.Action = .builtIn { _ in },
+      _ name: String, path: String, version: String, remote: String?, source: Upkeep.App.Source,
+      bundleID: String? = nil, action: Upkeep.App.Update.Action = .builtIn { _ in },
       unknown: Bool = false, state: UpdateProgressState? = nil, days: Double = 0,
-      minimumOS: Int? = nil, kind: Latest.App.Bundle.Kind = .app, parent: String? = nil,
+      minimumOS: Int? = nil, kind: Upkeep.App.Bundle.Kind = .app, parent: String? = nil,
       host: String? = nil, note: String? = nil
     ) {
-      let bundle = Latest.App.Bundle(
+      let bundle = Upkeep.App.Bundle(
         version: Version(versionNumber: version, buildNumber: nil), name: name,
         bundleIdentifier: bundleID
           ?? "fixture.round6.\(name.replacingOccurrences(of: " ", with: "-"))",
         fileURL: FileManager.default.temporaryDirectory
-          .appendingPathComponent("UpdaterSnapshotFixtures", isDirectory: true)
+          .appendingPathComponent("UpkeepSnapshotFixtures", isDirectory: true)
           .appendingPathComponent(URL(fileURLWithPath: path).lastPathComponent, isDirectory: true),
         source: kind == .driver ? .driver : source,
         modificationDate: Date(timeIntervalSince1970: 1_790_000_000 - days * 86_400),
         kind: kind, parent: parent, note: note,
         hostURL: host.map {
           FileManager.default.temporaryDirectory
-            .appendingPathComponent("UpdaterSnapshotFixtures", isDirectory: true)
+            .appendingPathComponent("UpkeepSnapshotFixtures", isDirectory: true)
             .appendingPathComponent($0, isDirectory: true)
         })
       _ = store.set(appBundle: bundle)
       if let remote {
         _ = store.set(
           .success(
-            Latest.App.Update(
+            Upkeep.App.Update(
               app: bundle, remoteVersion: Version(versionNumber: remote, buildNumber: nil),
               minimumOSVersion: minimumOS.map {
                 OperatingSystemVersion(majorVersion: $0, minorVersion: 4, patchVersion: 0)
@@ -559,7 +576,7 @@ private struct Round6Fixture {
               date: Date(timeIntervalSince1970: 1_790_000_000 - days * 86_400), releaseNotes: nil,
               updateAction: action, availabilityUnknown: unknown)), for: bundle)
       } else {
-        _ = store.set(.failure(LatestError.updateInfoUnavailable), for: bundle)
+        _ = store.set(.failure(UpkeepError.updateInfoUnavailable), for: bundle)
       }
       if let state { states[bundle.identifier] = state }
     }
@@ -610,18 +627,28 @@ private struct Round6Fixture {
       "Shottr", path: "/Applications/Shottr.app", version: "1.8.1", remote: "2.0.0",
       source: .sparkle, days: 10.5, minimumOS: 99)
     add(
-      "Updater", path: "/Applications/JuniorOS Apps/Updater.app", version: "0.8.0",
+      "Upkeep", path: "/Applications/JuniorOS Apps/Upkeep.app", version: "0.8.0",
       remote: nil, source: .none, bundleID: Foundation.Bundle.main.bundleIdentifier, days: 11)
     add(
       "Creative Cloud", path: "/Applications/Creative Cloud.app", version: "6.7.0",
-      remote: "6.7.0", source: .vendor, action: .external(label: "Creative Cloud") { _ in }, days: 12)
-    add("Core Sync", path: "/Applications/Core Sync.app", version: "7.1", remote: nil, source: .none, days: 12, parent: "Creative Cloud")
-    add("CCXProcess", path: "/Applications/CCXProcess.app", version: "6.1", remote: nil, source: .none, days: 12, parent: "Creative Cloud")
-    add("SwitcherPanel", path: "/Applications/SwitcherPanel.app", version: "10.1", remote: nil, source: .none, days: 13, parent: "Blackmagic ATEM Switchers")
-    add("SwitcherRecord", path: "/Applications/SwitcherRecord.app", version: "10.1", remote: nil, source: .none, days: 13, parent: "Blackmagic ATEM Switchers")
+      remote: "6.7.0", source: .vendor, action: .external(label: "Creative Cloud") { _ in },
+      days: 12)
+    add(
+      "Core Sync", path: "/Applications/Core Sync.app", version: "7.1", remote: nil, source: .none,
+      days: 12, parent: "Creative Cloud")
+    add(
+      "CCXProcess", path: "/Applications/CCXProcess.app", version: "6.1", remote: nil,
+      source: .none, days: 12, parent: "Creative Cloud")
+    add(
+      "SwitcherPanel", path: "/Applications/SwitcherPanel.app", version: "10.1", remote: nil,
+      source: .none, days: 13, parent: "Blackmagic ATEM Switchers")
+    add(
+      "SwitcherRecord", path: "/Applications/SwitcherRecord.app", version: "10.1", remote: nil,
+      source: .none, days: 13, parent: "Blackmagic ATEM Switchers")
     add(
       "ARK", path: "/Library/Audio/Plug-Ins/HAL/ARK.driver", version: "13.6.0", remote: "13.6.0",
-      source: .driver, days: 14, kind: .driver, note: "Up to date. Loopback still uses an older copy (13.5.6)")
+      source: .driver, days: 14, kind: .driver,
+      note: "Up to date. Loopback still uses an older copy (13.5.6)")
     add(
       "SoftRAID", path: "/Library/Extensions/SoftRAID.kext", version: "6.3.1", remote: nil,
       source: .driver, days: 14, kind: .driver, note: "No update source")
@@ -630,7 +657,9 @@ private struct Round6Fixture {
       version: "1.1", remote: nil, source: .driver, days: 14, kind: .driver, parent: "Raycast",
       host: "Raycast.app", note: "Updates with Raycast")
     updating = Round6Updating(states: states)
-    preferences = AppPreferences(defaults: defaults, setIgnoredState: { [store] on, app in store.setIgnoredState(on, for: app) }, history: nil)
+    preferences = AppPreferences(
+      defaults: defaults,
+      setIgnoredState: { [store] on, app in store.setIgnoredState(on, for: app) }, history: nil)
   }
 }
 
@@ -655,9 +684,9 @@ private final class SnapshotCoordinator: UpdateCheckCoordinating {
 
 @MainActor
 private final class SnapshotNotesProvider: ReleaseNotesProviding {
-  func releaseNotes(for app: Latest.App, with completion: @escaping ReleaseNotesProvider.Completion)
+  func releaseNotes(for app: Upkeep.App, with completion: @escaping ReleaseNotesProvider.Completion)
   {
-    completion(.failure(LatestError.releaseNotesUnavailable))
+    completion(.failure(UpkeepError.releaseNotesUnavailable))
   }
 }
 

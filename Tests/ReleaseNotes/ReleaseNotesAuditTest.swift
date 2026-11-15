@@ -1,6 +1,6 @@
 //
 //  ReleaseNotesAuditTest.swift
-//  Latest Tests
+//  Upkeep Tests
 //
 //  Created by ertyoii on 30.05.26.
 //  Copyright © 2026 Max Langer. All rights reserved.
@@ -13,12 +13,12 @@ import AppKit
 import Foundation
 import XCTest
 
-@testable import Latest
+@testable import Upkeep
 
 final class ReleaseNotesAuditTest: XCTestCase {
 
   func testInstalledApplicationReleaseNotesAudit() async throws {
-    #if LATEST_RELEASE_NOTES_AUDIT
+    #if UPKEEP_RELEASE_NOTES_AUDIT
       let directories = AppDirectoryStore(updateHandler: {}).URLs
       let bundles = Self.discoveredBundles(in: directories)
       XCTAssertFalse(bundles.isEmpty, "Expected at least one discoverable app bundle.")
@@ -289,7 +289,7 @@ final class ReleaseNotesAuditTest: XCTestCase {
 
   private static func write(report: String) throws {
     let url: URL
-    if let path = ProcessInfo.processInfo.environment["LATEST_RELEASE_NOTES_AUDIT_REPORT"] {
+    if let path = ProcessInfo.processInfo.environment["UPKEEP_RELEASE_NOTES_AUDIT_REPORT"] {
       url = URL(fileURLWithPath: path)
     } else {
       url = URL(fileURLWithPath: #filePath)
@@ -319,10 +319,10 @@ private struct AuditRow {
 extension ReleaseNotesAuditTest {
   @MainActor
   func testCatalogReleaseNotesAudit() async throws {
-    #if LATEST_RELEASE_NOTES_AUDIT
+    #if UPKEEP_RELEASE_NOTES_AUDIT
       guard
-        let catalogPath = ProcessInfo.processInfo.environment["LATEST_RELEASE_NOTES_CASK_CATALOG"],
-        let reportPath = ProcessInfo.processInfo.environment["LATEST_RELEASE_NOTES_CATALOG_REPORT"]
+        let catalogPath = ProcessInfo.processInfo.environment["UPKEEP_RELEASE_NOTES_CASK_CATALOG"],
+        let reportPath = ProcessInfo.processInfo.environment["UPKEEP_RELEASE_NOTES_CATALOG_REPORT"]
       else {
         throw XCTSkip("Pass --catalog PATH to script/audit_release_notes.sh.")
       }

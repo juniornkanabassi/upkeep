@@ -1,6 +1,6 @@
 //
 //  UpdateQueueTest.swift
-//  Latest Tests
+//  Upkeep Tests
 //
 //  Created by ertyoii on 28.05.26.
 //  Copyright © 2026 Max Langer. All rights reserved.
@@ -12,7 +12,7 @@ import Combine
 import Synchronization
 import XCTest
 
-@testable import Latest
+@testable import Upkeep
 
 @MainActor
 final class AppUpdatingBoundaryTest: XCTestCase {
@@ -100,7 +100,7 @@ final class AppUpdatingBoundaryTest: XCTestCase {
         bundleIdentifier: app.bundleIdentifier, appIdentifier: app.identifier)
       let notices = Mutex(0)
       let observer = NotificationCenter.default.addObserver(
-        forName: .latestUpdateOperationDidFinish, object: operation, queue: nil
+        forName: .upkeepUpdateOperationDidFinish, object: operation, queue: nil
       ) { _ in notices.withLock { $0 += 1 } }
       defer { NotificationCenter.default.removeObserver(observer) }
       if commit { try operation.beginCommit() }

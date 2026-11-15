@@ -4,7 +4,7 @@ import AppKit
 import SwiftUI
 import XCTest
 
-@testable import Latest
+@testable import Upkeep
 
 final class ReleaseNotesDetailViewModelTest: XCTestCase {
   @MainActor
@@ -18,7 +18,7 @@ final class ReleaseNotesDetailViewModelTest: XCTestCase {
       settings: settings)
     list.select(app)
     detail.display(app)
-    provider.completeRequest(at: 0, with: .failure(LatestError.releaseNotesUnavailable))
+    provider.completeRequest(at: 0, with: .failure(UpkeepError.releaseNotesUnavailable))
     let host = NSHostingView(
       rootView: ReleaseNotesDetailView(
         updatesViewModel: list, detailViewModel: detail))
@@ -155,16 +155,16 @@ final class ReleaseNotesDetailViewModelTest: XCTestCase {
     guard case .message(let emptyMessage) = viewModel.contentState else {
       return XCTFail("Expected an empty release note response to become an unavailable message.")
     }
-    XCTAssertEqual(emptyMessage.description, LatestError.releaseNotesUnavailable.failureReason)
+    XCTAssertEqual(emptyMessage.description, UpkeepError.releaseNotesUnavailable.failureReason)
 
     let thirdApp = makeTestApp(name: "Zed", version: "5", remoteVersion: "6")
     viewModel.display(thirdApp)
-    provider.completeRequest(at: 2, with: .failure(LatestError.updateInfoUnavailable))
+    provider.completeRequest(at: 2, with: .failure(UpkeepError.updateInfoUnavailable))
     guard case .message(let errorMessage) = viewModel.contentState else {
       return XCTFail("Expected provider failures to become detail messages.")
     }
-    XCTAssertEqual(errorMessage.title, LatestError.updateInfoUnavailable.localizedDescription)
-    XCTAssertEqual(errorMessage.description, LatestError.updateInfoUnavailable.failureReason)
+    XCTAssertEqual(errorMessage.title, UpkeepError.updateInfoUnavailable.localizedDescription)
+    XCTAssertEqual(errorMessage.description, UpkeepError.updateInfoUnavailable.failureReason)
 
     viewModel.display(nil)
     guard case .message(let noSelectionMessage) = viewModel.contentState else {
@@ -175,15 +175,15 @@ final class ReleaseNotesDetailViewModelTest: XCTestCase {
 
   @MainActor
   func testUpdateCheckFailureUsesCompactReleaseNotesEmptyState() {
-    let bundle = Latest.App.Bundle(
+    let bundle = Upkeep.App.Bundle(
       version: Version(versionNumber: "26.707.51957", buildNumber: nil),
       name: "ChatGPT",
       bundleIdentifier: "com.openai.codex",
       fileURL: URL(fileURLWithPath: "/Applications/ChatGPT.app"),
       source: .sparkle
     )
-    let app = Latest.App(
-      bundle: bundle, update: .failure(LatestError.updateInfoUnavailable), isIgnored: false)
+    let app = Upkeep.App(
+      bundle: bundle, update: .failure(UpkeepError.updateInfoUnavailable), isIgnored: false)
     let viewModel = ReleaseNotesDetailViewModel()
 
     viewModel.display(app)
@@ -204,10 +204,10 @@ final class ReleaseNotesDetailViewModelTest: XCTestCase {
 
 @MainActor
 private final class ReleaseNotesProviderProbe: ReleaseNotesProviding {
-  private(set) var requests: [(app: Latest.App, completion: ReleaseNotesProvider.Completion)] = []
+  private(set) var requests: [(app: Upkeep.App, completion: ReleaseNotesProvider.Completion)] = []
 
   func releaseNotes(
-    for app: Latest.App,
+    for app: Upkeep.App,
     with completion: @escaping ReleaseNotesProvider.Completion
   ) {
     requests.append((app, completion))

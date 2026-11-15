@@ -1,6 +1,6 @@
 //
 //  ReleaseNotesCatalogTest.swift
-//  Latest Tests
+//  Upkeep Tests
 //
 //  Structural split from the original implementation.
 //
@@ -10,7 +10,7 @@
 import CryptoKit
 import XCTest
 
-@testable import Latest
+@testable import Upkeep
 
 final class ReleaseNotesCatalogTest: XCTestCase {
   func testReleaseNotesSourceCatalogUsesBetterDisplayGitHubReleaseAPI() throws {

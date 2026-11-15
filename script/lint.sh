@@ -47,18 +47,18 @@ echo "Building for declaration analysis; log: $BUILD_LOG"
 # Compile both modules so declaration analysis sees the callers moved out of
 # the app-hosted bundle. Separate products keep the second graph from pruning
 # frameworks needed by SourceKit when it analyzes the first graph.
-for scheme in Updater 'Latest Unit Tests'; do
+for scheme in Upkeep 'Upkeep Unit Tests'; do
   derived_data="$ROOT_DIR/build/LintDerivedData"
-  if [[ "$scheme" == 'Latest Unit Tests' ]]; then
+  if [[ "$scheme" == 'Upkeep Unit Tests' ]]; then
     derived_data="$ROOT_DIR/build/LintUnitDerivedData"
   fi
-  if ! xcodebuild -project Latest.xcodeproj -scheme "$scheme" -configuration Debug \
+  if ! xcodebuild -project Upkeep.xcodeproj -scheme "$scheme" -configuration Debug \
     -destination 'platform=macOS' -derivedDataPath "$derived_data" \
     -clonedSourcePackagesDirPath "$ROOT_DIR/build/DerivedData/SourcePackages" \
     -disableAutomaticPackageResolution -onlyUsePackageVersionsFromResolvedFile \
     CLANG_MODULE_CACHE_PATH="$ROOT_DIR/build/LintModuleCache" \
     CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY='' \
-    OTHER_SWIFT_FLAGS='$(inherited) -DLATEST_RELEASE_NOTES_AUDIT' \
+    OTHER_SWIFT_FLAGS='$(inherited) -DUPKEEP_RELEASE_NOTES_AUDIT' \
     clean build-for-testing >> "$BUILD_LOG" 2>&1; then
     tail -n 60 "$BUILD_LOG" >&2
     exit 1

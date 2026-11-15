@@ -1,6 +1,6 @@
 //
 //  UpdateQueueTest.swift
-//  Latest Tests
+//  Upkeep Tests
 //
 //  Created by ertyoii on 28.05.26.
 //  Copyright © 2026 Max Langer. All rights reserved.
@@ -12,7 +12,7 @@ import Combine
 import Synchronization
 import XCTest
 
-@testable import Latest
+@testable import Upkeep
 
 @MainActor
 final class UpdateCheckDiscoveryTest: XCTestCase {
@@ -52,7 +52,7 @@ final class UpdateCheckDiscoveryTest: XCTestCase {
     await fulfillment(of: [oldStarted], timeout: 2)
     try writeVersion("2")
     NotificationCenter.default.post(
-      name: .latestUpdateOperationDidFinish, object: nil,
+      name: .upkeepUpdateOperationDidFinish, object: nil,
       userInfo: [UpdateOperation.appIdentifierUserInfoKey: appURL])
     await fulfillment(of: [newStarted], timeout: 2)
     await checks.complete("Installed", installedVersion: "2", remoteVersion: "3")
@@ -337,7 +337,7 @@ private actor SuspendedDiscoveryChecks {
   func fail(_ name: String) {
     guard let index = pending.firstIndex(where: { $0.0.name == name }) else { return }
     let (_, continuation) = pending.remove(at: index)
-    continuation.resume(throwing: LatestError.updateInfoUnavailable)
+    continuation.resume(throwing: UpkeepError.updateInfoUnavailable)
   }
 }
 

@@ -4,14 +4,14 @@ import AppKit
 import SwiftUI
 import XCTest
 
-@testable import Latest
+@testable import Upkeep
 
 final class ApplicationLifecycleTest: XCTestCase {
   @MainActor
   func testHostedTestsUseBackgroundApplicationLifecycle() {
     XCTAssertEqual(Bundle.main.bundleURL.pathExtension, "app")
     XCTAssertNotNil(NSApp)
-    if ProcessInfo.processInfo.environment["LATEST_UI_TESTS"] != "1" {
+    if ProcessInfo.processInfo.environment["UPKEEP_UI_TESTS"] != "1" {
       XCTAssertEqual(NSApp.activationPolicy(), .prohibited)
       XCTAssertFalse(NSApp.isActive, "Background tests must not activate over another app")
     }

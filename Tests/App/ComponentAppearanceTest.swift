@@ -5,7 +5,7 @@ import SwiftUI
 import WebKit
 import XCTest
 
-@testable import Latest
+@testable import Upkeep
 
 final class ComponentAppearanceTest: XCTestCase {
   @MainActor
@@ -32,18 +32,18 @@ private enum AppearanceFixtureRenderer {
   /// checked-in reference images or skips their comparison.
   private static let candidateOutputDirectory: URL? = {
     guard
-      ProcessInfo.processInfo.environment["LATEST_RECORD_VISUAL_BASELINES"] == "1"
-        || FileManager.default.fileExists(atPath: "/tmp/latest-record-visual-baselines")
+      ProcessInfo.processInfo.environment["UPKEEP_RECORD_VISUAL_BASELINES"] == "1"
+        || FileManager.default.fileExists(atPath: "/tmp/upkeep-record-visual-baselines")
     else {
       return nil
     }
-    return URL(fileURLWithPath: "/tmp/latest-visual-candidates", isDirectory: true)
+    return URL(fileURLWithPath: "/tmp/upkeep-visual-candidates", isDirectory: true)
   }()
   private static let diagnosticOutputDirectory: URL? = {
-    if let path = ProcessInfo.processInfo.environment["LATEST_VISUAL_OUTPUT_DIRECTORY"] {
+    if let path = ProcessInfo.processInfo.environment["UPKEEP_VISUAL_OUTPUT_DIRECTORY"] {
       return URL(fileURLWithPath: path, isDirectory: true)
     }
-    let fallbackPath = "/tmp/latest-visual-output"
+    let fallbackPath = "/tmp/upkeep-visual-output"
     guard FileManager.default.fileExists(atPath: fallbackPath) else { return nil }
     return URL(fileURLWithPath: fallbackPath, isDirectory: true)
   }()
@@ -211,7 +211,7 @@ private enum AppearanceFixtureRenderer {
         : leftToRightDetail
       // Only the real detail surface is covered by these existing references.
       // NSWorkspace owns the generic document icon and can change its shadow
-      // pixels independently of Latest. Compare the production-owned metadata
+      // pixels independently of Upkeep. Compare the production-owned metadata
       // and action portion of the header.
       let headerContentStart =
         detail.minX

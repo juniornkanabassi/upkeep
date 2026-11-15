@@ -1,6 +1,6 @@
 //
 //  ReleaseNotesMarkupTest.swift
-//  Latest Tests
+//  Upkeep Tests
 //
 //  Structural split from the original implementation.
 //
@@ -11,7 +11,7 @@ import AppKit
 import CryptoKit
 import XCTest
 
-@testable import Latest
+@testable import Upkeep
 
 final class ReleaseNotesMarkupTest: XCTestCase {
   func testEntitiesAreDecodedExactlyOnce() {
@@ -1243,7 +1243,7 @@ final class ReleaseNotesMarkupTest: XCTestCase {
       <div>Versions</div>
       <a href="/releases/stable/1.4.4">1.4.4</a>
       <a href="/releases/stable/1.4.3">1.4.3</a>
-      <script>self.__next_f.push([1,"[[\\"$\\",\\"$L105\\",\\"Zed-aarch64.dmg\\",{\\"release\\":{\\"version\\":\\"1.4.4\\",\\"description\\":\\"- copilot: Fixed an issue where using GPT models would return an error in `invalid_request_body` ([#57979](https://github.com/zed-industries/zed/pull/57979))\\\\r\\\\n\\\\r\\\\n\\",\\"assets\\":[\\"Zed-aarch64.dmg\\"],\\"published_at\\":\\"2026-05-28T20:55:02.000Z\\",\\"channelType\\":\\"stable\\",\\"isLatest\\":true},\\"asset\\":\\"Zed-aarch64.dmg\\"}]]"])</script>
+      <script>self.__next_f.push([1,"[[\\"$\\",\\"$L105\\",\\"Zed-aarch64.dmg\\",{\\"release\\":{\\"version\\":\\"1.4.4\\",\\"description\\":\\"- copilot: Fixed an issue where using GPT models would return an error in `invalid_request_body` ([#57979](https://github.com/zed-industries/zed/pull/57979))\\\\r\\\\n\\\\r\\\\n\\",\\"assets\\":[\\"Zed-aarch64.dmg\\"],\\"published_at\\":\\"2026-05-28T20:55:02.000Z\\",\\"channelType\\":\\"stable\\",\\"isUpkeep\\":true},\\"asset\\":\\"Zed-aarch64.dmg\\"}]]"])</script>
       """
 
     let text = try XCTUnwrap(
@@ -1260,7 +1260,7 @@ final class ReleaseNotesMarkupTest: XCTestCase {
 
   func testReleaseNotesMarkupIgnoresZedReactServerDescriptionReference() throws {
     let html = """
-      <script>self.__next_f.push([1,"[[\\"$\\",\\"$L105\\",\\"Zed-aarch64.dmg\\",{\\"release\\":{\\"version\\":\\"1.6.3\\",\\"description\\":\\"$106\\",\\"assets\\":[\\"Zed-aarch64.dmg\\"],\\"published_at\\":\\"2026-06-10T18:33:08.000Z\\",\\"channelType\\":\\"stable\\",\\"isLatest\\":true},\\"asset\\":\\"Zed-aarch64.dmg\\"}]]"])</script>
+      <script>self.__next_f.push([1,"[[\\"$\\",\\"$L105\\",\\"Zed-aarch64.dmg\\",{\\"release\\":{\\"version\\":\\"1.6.3\\",\\"description\\":\\"$106\\",\\"assets\\":[\\"Zed-aarch64.dmg\\"],\\"published_at\\":\\"2026-06-10T18:33:08.000Z\\",\\"channelType\\":\\"stable\\",\\"isUpkeep\\":true},\\"asset\\":\\"Zed-aarch64.dmg\\"}]]"])</script>
       <main>
       \t<p>Version : 1.6.3</p>
       \t<p>Platform : macOS</p>

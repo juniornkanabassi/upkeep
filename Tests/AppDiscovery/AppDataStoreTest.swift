@@ -1,6 +1,6 @@
 //
 //  AppDataStoreTest.swift
-//  Latest Tests
+//  Upkeep Tests
 //
 //  Created by ertyoii on 19.05.26.
 //  Copyright © 2026 Max Langer. All rights reserved.
@@ -11,7 +11,7 @@
 import Synchronization
 import XCTest
 
-@testable import Latest
+@testable import Upkeep
 
 final class AppDataStoreTest: XCTestCase {
   @MainActor

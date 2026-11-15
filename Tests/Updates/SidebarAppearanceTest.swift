@@ -4,7 +4,7 @@ import AppKit
 import SwiftUI
 import XCTest
 
-@testable import Latest
+@testable import Upkeep
 
 final class SidebarAppearanceTest: XCTestCase {
   @MainActor
@@ -23,7 +23,7 @@ final class SidebarAppearanceTest: XCTestCase {
     model.startObserving()
     defer { model.stopObserving() }
     let environment = AppEnvironment(settings: settings, updatesListViewModel: model)
-    let window = try await makeLatestTestWindow(environment: environment, testCase: self)
+    let window = try await makeUpkeepTestWindow(environment: environment, testCase: self)
     defer { window.close() }
     let fixture = try SidebarInputFixture(window: window, model: model)
     model.select(installed)
@@ -126,7 +126,7 @@ final class SidebarAppearanceTest: XCTestCase {
 
   @MainActor
   private func assertVersionLabel(
-    _ version: String, for app: Latest.App, in fixture: SidebarInputFixture
+    _ version: String, for app: Upkeep.App, in fixture: SidebarInputFixture
   ) throws {
     let identifier = "updates.version.\(app.identifier)"
     let label = try XCTUnwrap(

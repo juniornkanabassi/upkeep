@@ -11,14 +11,14 @@
 import AppKit
 import SwiftUI
 
-@testable import Latest
+@testable import Upkeep
 
-private typealias App = Latest.App
+private typealias App = Upkeep.App
 
 /// Deterministic fixtures used by the detail and settings appearance checks.
 ///
 /// Only production controls belong here. Main-window and sidebar coverage uses
-/// LatestMainWindowScene with offline models, never a second UI implementation.
+/// UpkeepMainWindowScene with offline models, never a second UI implementation.
 struct AppearanceFixtureScenario: Identifiable {
   enum Surface {
     case detail(DetailState)

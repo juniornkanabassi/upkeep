@@ -1,6 +1,6 @@
 //
 //  ReleaseNotesPipelineTest.swift
-//  Latest Tests
+//  Upkeep Tests
 //
 //  Structural split from the original implementation.
 //
@@ -10,7 +10,7 @@
 import CryptoKit
 import XCTest
 
-@testable import Latest
+@testable import Upkeep
 
 final class ReleaseNotesPipelineTest: XCTestCase {
 
@@ -287,25 +287,25 @@ final class ReleaseNotesPipelineTest: XCTestCase {
     let publicKey = Curve25519.Signing.PrivateKey().publicKey.rawRepresentation
       .base64EncodedString()
     let valid = SignedReleaseNotesCatalogClient.Configuration.live(environment: [
-      "LATEST_RELEASE_NOTES_CATALOG_URL": "https://example.com/release-notes.json",
-      "LATEST_RELEASE_NOTES_CATALOG_PUBLIC_KEY": publicKey,
+      "UPKEEP_RELEASE_NOTES_CATALOG_URL": "https://example.com/release-notes.json",
+      "UPKEEP_RELEASE_NOTES_CATALOG_PUBLIC_KEY": publicKey,
     ])
     XCTAssertTrue(valid.isEnabled)
     XCTAssertEqual(valid.remoteURL?.absoluteString, "https://example.com/release-notes.json")
 
     for environment in [
-      ["LATEST_RELEASE_NOTES_CATALOG_URL": "https://example.com/release-notes.json"],
+      ["UPKEEP_RELEASE_NOTES_CATALOG_URL": "https://example.com/release-notes.json"],
       [
-        "LATEST_RELEASE_NOTES_CATALOG_URL": "http://example.com/release-notes.json",
-        "LATEST_RELEASE_NOTES_CATALOG_PUBLIC_KEY": publicKey,
+        "UPKEEP_RELEASE_NOTES_CATALOG_URL": "http://example.com/release-notes.json",
+        "UPKEEP_RELEASE_NOTES_CATALOG_PUBLIC_KEY": publicKey,
       ],
       [
-        "LATEST_RELEASE_NOTES_CATALOG_URL": "https://user@example.com/release-notes.json",
-        "LATEST_RELEASE_NOTES_CATALOG_PUBLIC_KEY": publicKey,
+        "UPKEEP_RELEASE_NOTES_CATALOG_URL": "https://user@example.com/release-notes.json",
+        "UPKEEP_RELEASE_NOTES_CATALOG_PUBLIC_KEY": publicKey,
       ],
       [
-        "LATEST_RELEASE_NOTES_CATALOG_URL": "https://example.com/release-notes.json",
-        "LATEST_RELEASE_NOTES_CATALOG_PUBLIC_KEY": "invalid",
+        "UPKEEP_RELEASE_NOTES_CATALOG_URL": "https://example.com/release-notes.json",
+        "UPKEEP_RELEASE_NOTES_CATALOG_PUBLIC_KEY": "invalid",
       ],
     ] {
       XCTAssertFalse(

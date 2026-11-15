@@ -14,7 +14,7 @@ files=()
 while IFS= read -r -d '' file; do
   # Keep the proven Video Prompter guard test verbatim (only its import differs).
   [[ "$file" != Tests/TestOffscreenTests.swift && -f "$file" ]] && files+=("$file")
-done < <(git ls-files --cached --others --exclude-standard -z -- 'Latest/*.swift' 'Tests/*.swift' 'UpdateInstaller/*.swift' 'UpdaterCLI/*.swift' 'script/*.swift')
+done < <(git ls-files --cached --others --exclude-standard -z -- 'Upkeep/*.swift' 'Tests/*.swift' 'UpdateInstaller/*.swift' 'UpkeepCLI/*.swift' 'script/*.swift')
 
 if [[ "${1:-}" != --check ]]; then
   xcrun swift-format format --configuration "$ROOT_DIR/.swift-format" --in-place --parallel "${files[@]}"
@@ -22,7 +22,7 @@ if [[ "${1:-}" != --check ]]; then
 fi
 
 # Compare formatter output instead of enforcing unrelated naming/refactoring lint rules.
-formatted="$(mktemp "${TMPDIR:-/tmp}/latest-format.XXXXXX")"
+formatted="$(mktemp "${TMPDIR:-/tmp}/upkeep-format.XXXXXX")"
 trap 'rm -f "$formatted"' EXIT
 status=0
 for file in "${files[@]}"; do

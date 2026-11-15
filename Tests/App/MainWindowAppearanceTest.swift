@@ -5,7 +5,7 @@ import SwiftUI
 import WebKit
 import XCTest
 
-@testable import Latest
+@testable import Upkeep
 
 final class MainWindowAppearanceTest: XCTestCase {
   @MainActor
@@ -54,7 +54,7 @@ final class MainWindowAppearanceTest: XCTestCase {
         }
         let environment = AppEnvironment(settings: settings, updatesListViewModel: model)
         try await deactivateTestApplication()
-        let window = try await makeLatestTestWindow(
+        let window = try await makeUpkeepTestWindow(
           environment: environment, dark: dark, activate: false, testCase: self)
         try await deactivateTestApplication()
         XCTAssertFalse(window.isKeyWindow)
@@ -107,7 +107,7 @@ final class MainWindowAppearanceTest: XCTestCase {
 
 private final class ProductionCaptureOperation: UpdateOperation, @unchecked Sendable {
   private let started: XCTestExpectation
-  init(app: Latest.App, started: XCTestExpectation) {
+  init(app: Upkeep.App, started: XCTestExpectation) {
     self.started = started
     super.init(bundleIdentifier: app.bundleIdentifier, appIdentifier: app.identifier)
   }

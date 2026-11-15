@@ -49,7 +49,7 @@ final class UpdateActionPresentationTest: XCTestCase {
       .progress(fraction: extractionFraction, status: extractionStatus, cancellable: false))
 
     let error = NSError(
-      domain: "LatestTests", code: 7,
+      domain: "UpkeepTests", code: 7,
       userInfo: [
         NSLocalizedDescriptionKey: "The update failed"
       ])

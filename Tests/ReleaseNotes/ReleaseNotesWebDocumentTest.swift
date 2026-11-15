@@ -2,7 +2,7 @@
 
 import XCTest
 
-@testable import Latest
+@testable import Upkeep
 
 final class ReleaseNotesWebDocumentTest: XCTestCase {
   func testReleaseNotesWebDocumentEscapesMarkupAndRejectsScriptLinks() {

@@ -7,7 +7,7 @@ final class UnhostedTestExecutionTest: XCTestCase {
   func testUnitBundleRunsInXCTestWithoutAnApplicationHost() {
     XCTAssertEqual(ProcessInfo.processInfo.processName, "xctest")
     XCTAssertNotEqual(Bundle.main.bundleURL.pathExtension, "app")
-    XCTAssertNil(Bundle(identifier: "com.juniornkanabassi.Updater"))
+    XCTAssertNil(Bundle(identifier: "com.juniornkanabassi.Upkeep"))
     print(
       "Unhosted test process: \(ProcessInfo.processInfo.processName), executable: \(Bundle.main.executableURL?.path ?? "unknown")"
     )

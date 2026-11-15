@@ -24,12 +24,12 @@ xcuserdata/
 *.xcbkptlist
 
 # Keep the pinned dependency resolution while ignoring workspace state.
-Latest.xcodeproj/project.xcworkspace/*
-!Latest.xcodeproj/project.xcworkspace/xcshareddata/
-Latest.xcodeproj/project.xcworkspace/xcshareddata/*
-!Latest.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/
-Latest.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/*
-!Latest.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
+Upkeep.xcodeproj/project.xcworkspace/*
+!Upkeep.xcodeproj/project.xcworkspace/xcshareddata/
+Upkeep.xcodeproj/project.xcworkspace/xcshareddata/*
+!Upkeep.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/
+Upkeep.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/*
+!Upkeep.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
 
 # Generated editor configuration includes machine-specific paths.
 /buildServer.json

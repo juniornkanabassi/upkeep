@@ -3,7 +3,7 @@
 import Synchronization
 import XCTest
 
-@testable import Latest
+@testable import Upkeep
 
 /// Per-app automatic updates, setting credits and attached callers. Fixture apps only live in
 /// memory under a temporary path; nothing is installed, and the defaults suite is removed.

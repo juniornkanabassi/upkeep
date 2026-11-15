@@ -4,12 +4,12 @@ import CryptoKit
 import Foundation
 import XCTest
 
-@testable import Latest
+@testable import Upkeep
 
 /// Disposable, ad-hoc signed app bundles in temporary folders. Their executable is a copy
 /// of /usr/bin/true (or false for "won't launch"), so probing them never opens a window.
 enum FixtureApp {
-  static let identifier = "com.juniornkanabassi.updater-fixture"
+  static let identifier = "com.juniornkanabassi.upkeep-fixture"
 
   @discardableResult
   static func make(
@@ -87,7 +87,7 @@ enum FixtureApp {
 extension XCTestCase {
   func disposableDirectory() throws -> URL {
     let url = FileManager.default.temporaryDirectory
-      .appendingPathComponent("UpdaterTests-" + UUID().uuidString)
+      .appendingPathComponent("UpkeepTests-" + UUID().uuidString)
     try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
     addTeardownBlock { try? FileManager.default.removeItem(at: url) }
     return url

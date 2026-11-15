@@ -5,7 +5,7 @@ import SwiftUI
 import WebKit
 import XCTest
 
-@testable import Latest
+@testable import Upkeep
 
 @MainActor
 final class SidebarInteractionTest: XCTestCase {
@@ -24,19 +24,19 @@ final class SidebarInteractionTest: XCTestCase {
     model.startObserving()
     defer { model.stopObserving() }
     let environment = AppEnvironment(settings: settings, updatesListViewModel: model)
-    let window = try await makeLatestTestWindow(
+    let window = try await makeUpkeepTestWindow(
       environment: environment, activate: false, testCase: self)
     defer { window.close() }
     try requireWindowServerCapture(window)
     let fixture = try SidebarInputFixture(window: window, model: model)
 
-    let results: [Result<Latest.App.Update, Error>] = [
+    let results: [Result<Upkeep.App.Update, Error>] = [
       .success(
         App.Update(
           app: bundle, remoteVersion: bundle.version, minimumOSVersion: nil, source: .appStore,
           date: nil, releaseNotes: .html(string: "<p>Current release notes</p>"),
           updateAction: .builtIn { _ in })),
-      .failure(LatestError.updateInfoUnavailable),
+      .failure(UpkeepError.updateInfoUnavailable),
     ]
     for result in results {
       store.beginUpdateCheck(generation: 1)
@@ -92,7 +92,7 @@ final class SidebarInteractionTest: XCTestCase {
     model.startObserving()
     defer { model.stopObserving() }
     let environment = AppEnvironment(settings: settings, updatesListViewModel: model)
-    let window = try await makeLatestTestWindow(environment: environment, testCase: self)
+    let window = try await makeUpkeepTestWindow(environment: environment, testCase: self)
     defer { window.close() }
     let fixture = try SidebarInputFixture(window: window, model: model)
     try await fixture.activate()
@@ -170,7 +170,7 @@ final class SidebarInteractionTest: XCTestCase {
   private func checkSearchEscapeRestoresReleaseNotesAfterRepeatedFindCommands() async throws {
     let environment = AppEnvironment.localUATFixture(
       settings: try isolatedAppListSettings(for: self))
-    let window = try await makeLatestTestWindow(environment: environment, testCase: self)
+    let window = try await makeUpkeepTestWindow(environment: environment, testCase: self)
     let host = try XCTUnwrap(window.contentView)
     defer { window.close() }
     let fixture = try SidebarInputFixture(window: window, model: environment.updatesListViewModel)
@@ -271,7 +271,7 @@ final class SidebarInteractionTest: XCTestCase {
     model.startObserving()
     defer { model.stopObserving() }
     let environment = AppEnvironment(settings: settings, updatesListViewModel: model)
-    let window = try await makeLatestTestWindow(environment: environment, testCase: self)
+    let window = try await makeUpkeepTestWindow(environment: environment, testCase: self)
     defer { window.close() }
     let fixture = try SidebarInputFixture(window: window, model: model)
     XCTAssertEqual(store.apps.first?.updateStatus, .current)
@@ -344,17 +344,17 @@ final class SidebarInteractionTest: XCTestCase {
   private func makeFixture() async throws -> (SidebarInputFixture, AppEnvironment) {
     let settings = try isolatedAppListSettings(for: self)
     let apps = (0..<40).map { index in
-      let bundle = Latest.App.Bundle(
+      let bundle = Upkeep.App.Bundle(
         version: Version(versionNumber: "1.0", buildNumber: nil),
         name: String(format: "Sidebar App %02d", index),
         bundleIdentifier: "com.example.sidebar.\(index)",
         fileURL: URL(fileURLWithPath: "/Applications/Sidebar-\(index).app"), source: .appStore)
-      let update = Latest.App.Update(
+      let update = Upkeep.App.Update(
         app: bundle,
         remoteVersion: Version(versionNumber: "2.0", buildNumber: nil), minimumOSVersion: nil,
         source: .appStore, date: nil, releaseNotes: nil,
         updateAction: .builtIn { _ in })
-      return Latest.App(
+      return Upkeep.App(
         bundle: bundle, update: index < 25 ? .success(update) : nil, isIgnored: false)
     }
     let model = UpdatesListViewModel(
@@ -363,7 +363,7 @@ final class SidebarInteractionTest: XCTestCase {
     let environment = AppEnvironment(
       settings: settings, updatesListViewModel: model)
     NSApp.setActivationPolicy(.prohibited)
-    let window = try await makeLatestTestWindow(environment: environment, testCase: self)
+    let window = try await makeUpkeepTestWindow(environment: environment, testCase: self)
     let fixture = try SidebarInputFixture(window: window, model: model)
     try await fixture.activate()
     try await Task.sleep(for: .milliseconds(100))

@@ -1,6 +1,6 @@
 //
 //  ReleaseNotesProviderTest.swift
-//  Latest Tests
+//  Upkeep Tests
 //
 //  Structural split from the original implementation.
 //
@@ -10,7 +10,7 @@
 import CryptoKit
 import XCTest
 
-@testable import Latest
+@testable import Upkeep
 
 final class ReleaseNotesProviderTest: XCTestCase {
   @MainActor
@@ -23,7 +23,7 @@ final class ReleaseNotesProviderTest: XCTestCase {
     </script></body></html>
     """.write(to: file, atomically: true, encoding: .utf8)
     let gate = WebContentAcceptanceGate()
-    let completed = expectation(description: "Latest HTML completed")
+    let completed = expectation(description: "Upkeep HTML completed")
     var contents = [String]()
     let loader = WebContentLoader()
     defer { loader.cancel() }
@@ -82,7 +82,7 @@ final class ReleaseNotesProviderTest: XCTestCase {
       name: "Obsidian", bundleIdentifier: "md.obsidian",
       fileURL: URL(fileURLWithPath: "/Applications/Obsidian.app"), source: .none)
     let app = App(
-      bundle: bundle, update: .failure(LatestError.updateInfoUnavailable), isIgnored: false)
+      bundle: bundle, update: .failure(UpkeepError.updateInfoUnavailable), isIgnored: false)
     let notes = ResolvedReleaseNotes(
       content: ReleaseNotesContent(string: "Fixed missing files in the vault explorer."),
       quality: .genuine, provenance: .changelog)
@@ -146,7 +146,7 @@ final class ReleaseNotesProviderTest: XCTestCase {
   }
 
   func testInternalFetchErrorsProduceReadableReleaseNoteMessages() {
-    let expected = ReleaseNotesMessage(error: LatestError.releaseNotesUnavailable)
+    let expected = ReleaseNotesMessage(error: UpkeepError.releaseNotesUnavailable)
     for error in [FetchHTMLError.unusableText, .fetchFailed] {
       XCTAssertEqual(ReleaseNotesMessage(error: error), expected)
     }
@@ -181,27 +181,27 @@ final class ReleaseNotesProviderTest: XCTestCase {
   }
 
   @MainActor
-  func testLatestDevHasVersionMatchedOfflineNotesWithoutAnUpdater() async throws {
+  func testUpkeepDevHasVersionMatchedOfflineNotesWithoutAnUpdater() async throws {
     func app(identifier: String, version: String) -> App {
       let bundle = App.Bundle(
         version: Version(versionNumber: version, buildNumber: nil),
-        name: "Latest Dev", bundleIdentifier: identifier,
-        fileURL: URL(fileURLWithPath: "/Applications/Latest Dev.app"),
+        name: "Upkeep Dev", bundleIdentifier: identifier,
+        fileURL: URL(fileURLWithPath: "/Applications/Upkeep Dev.app"),
         source: .none, modificationDate: .distantPast)
       return App(
-        bundle: bundle, update: .failure(LatestError.releaseNotesUnavailable), isIgnored: false)
+        bundle: bundle, update: .failure(UpkeepError.releaseNotesUnavailable), isIgnored: false)
     }
-    let installed = app(identifier: "com.juniornkanabassi.Updater", version: "0.59")
+    let installed = app(identifier: "com.juniornkanabassi.Upkeep", version: "0.59")
     let notes = try await releaseNotes(for: installed, provider: ReleaseNotesProvider())
     XCTAssertTrue(notes.string.contains("Latest Dev 0.59"))
     XCTAssertTrue(notes.string.contains("release-note margins"))
     XCTAssertFalse(installed.supported)
     XCTAssertNil(
       ReleaseNotesProvider.bundledReleaseNotes(
-        for: app(identifier: "com.juniornkanabassi.Updater", version: "0.57")))
+        for: app(identifier: "com.juniornkanabassi.Upkeep", version: "0.57")))
     XCTAssertNil(
       ReleaseNotesProvider.bundledReleaseNotes(
-        for: app(identifier: "com.juniornkanabassi.Updater.other", version: "0.59")))
+        for: app(identifier: "com.juniornkanabassi.Upkeep.other", version: "0.59")))
   }
 
   func testReleaseNotesProviderBuildsGitHubWebURLFromAPIURL() throws {
@@ -290,7 +290,7 @@ final class ReleaseNotesProviderTest: XCTestCase {
 
     await fulfillment(of: [expectation], timeout: 1)
 
-    guard let error = capturedError as? LatestError,
+    guard let error = capturedError as? UpkeepError,
       case .releaseNotesUnavailable = error
     else {
       return XCTFail(

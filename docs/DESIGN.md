@@ -1,4 +1,4 @@
-# Updater design
+# Upkeep design
 
 The app should feel calm and dependable. Its main job is to show which apps need attention, explain where each update happens, and preserve the user's control over installations.
 

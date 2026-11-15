@@ -1,6 +1,6 @@
 //
 //  ComplexityBenchmarkTest.swift
-//  Latest Tests
+//  Upkeep Tests
 //
 //  Created by ertyoii on 31.05.26.
 //  Copyright © 2026 Max Langer. All rights reserved.
@@ -11,7 +11,7 @@
 import Foundation
 import XCTest
 
-@testable import Latest
+@testable import Upkeep
 
 @MainActor
 final class ComplexityBenchmarkTest: XCTestCase {
@@ -19,7 +19,7 @@ final class ComplexityBenchmarkTest: XCTestCase {
     let directory = FileManager.default.temporaryDirectory
       .appendingPathComponent(UUID().uuidString, isDirectory: true)
     let cacheURL = directory.appendingPathComponent("repository.json")
-    let suiteName = "Latest.RepositoryCacheTests.\(UUID().uuidString)"
+    let suiteName = "Upkeep.RepositoryCacheTests.\(UUID().uuidString)"
     let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
     defer {
       try? FileManager.default.removeItem(at: directory)
@@ -114,7 +114,7 @@ final class ComplexityBenchmarkTest: XCTestCase {
     let releaseNotesMarkup = makeReleaseNotesMarkup(sectionCount: 300)
     let releaseNotesCacheDirectory = FileManager.default.temporaryDirectory
       .appendingPathComponent(
-        "Latest-ReleaseNotes-Benchmark-\(UUID().uuidString)", isDirectory: true)
+        "Upkeep-ReleaseNotes-Benchmark-\(UUID().uuidString)", isDirectory: true)
     defer { try? FileManager.default.removeItem(at: releaseNotesCacheDirectory) }
     let releaseNotesCache = ReleaseNotesPersistentCache(directoryURL: releaseNotesCacheDirectory)
     let releaseNotesCachePayload = ReleaseNotesPersistentPayload(
@@ -614,7 +614,7 @@ final class ComplexityBenchmarkTest: XCTestCase {
   private func makeBundleCollectionRoot(appCount: Int, fillerDirectoryCount: Int) throws -> URL {
     let fileManager = FileManager.default
     let rootURL = fileManager.temporaryDirectory
-      .appendingPathComponent("LatestComplexityBenchmark-\(UUID().uuidString)", isDirectory: true)
+      .appendingPathComponent("UpkeepComplexityBenchmark-\(UUID().uuidString)", isDirectory: true)
     try fileManager.createDirectory(at: rootURL, withIntermediateDirectories: true)
 
     for index in 0..<fillerDirectoryCount {

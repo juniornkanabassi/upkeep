@@ -3,7 +3,7 @@
 import Synchronization
 import XCTest
 
-@testable import Latest
+@testable import Upkeep
 
 extension AppStoreInstallGate {
   /// Every probe agrees that `path` is the only copy.
@@ -17,12 +17,12 @@ extension AppStoreInstallGate {
 private struct ProbeFailure: Error {}
 
 final class AppStoreInstallGateTest: XCTestCase {
-  private let target = URL(fileURLWithPath: "/Applications/UpdaterGateFixture.app")
+  private let target = URL(fileURLWithPath: "/Applications/UpkeepGateFixture.app")
   private let identifier = FixtureApp.identifier
 
   func testInstallIsAllowedOnlyWhenEveryProbeAgreesOnTheExactURL() async throws {
     let target = self.target
-    let other = URL(fileURLWithPath: "/Users/Shared/Copy/UpdaterGateFixture.app")
+    let other = URL(fileURLWithPath: "/Users/Shared/Copy/UpkeepGateFixture.app")
     let allowed = AppStoreInstallGate.agreeing(on: target.path)
     var allowedResult = await allowed.allowsInstall(at: target, bundleIdentifier: identifier)
     XCTAssertTrue(allowedResult, "positive control")
@@ -64,7 +64,7 @@ final class AppStoreInstallGateTest: XCTestCase {
 
     for url in [
       root.appendingPathComponent("Fixture.app"),
-      URL(fileURLWithPath: "/Applications/Utilities/UpdaterGateFixture.app"),
+      URL(fileURLWithPath: "/Applications/Utilities/UpkeepGateFixture.app"),
     ] {
       allowedResult = await AppStoreInstallGate.agreeing(on: url.path)
         .allowsInstall(at: url, bundleIdentifier: identifier)
@@ -156,8 +156,8 @@ final class AppStoreInstallGateTest: XCTestCase {
     // A second copy appeared while the package downloaded.
     gate.launchServicesURLs = { _ in
       [
-        URL(fileURLWithPath: "/Applications/UpdaterGateFixture.app"),
-        URL(fileURLWithPath: "/Users/Shared/UpdaterGateFixture.app"),
+        URL(fileURLWithPath: "/Applications/UpkeepGateFixture.app"),
+        URL(fileURLWithPath: "/Users/Shared/UpkeepGateFixture.app"),
       ]
     }
     operation.installGate = { [gate] in await gate.allowsInstall(at: $0, bundleIdentifier: $1) }
@@ -458,7 +458,7 @@ final class AppStoreInstallGateTest: XCTestCase {
         // The installer wrote a bad bundle, then the connection dropped.
         try FileManager.default.removeItem(at: appURL)
         try FileManager.default.copyItem(at: bad, to: appURL)
-        throw LatestError.installHelperCommunicationFailed
+        throw UpkeepError.installHelperCommunicationFailed
       }
       try operation.takeBackup()
       await operation.installThroughHelper(
@@ -488,7 +488,7 @@ final class AppStoreInstallGateTest: XCTestCase {
     XCTAssertTrue(InstallHelper.isLostReply(raw))
     XCTAssertTrue(InstallHelper.isLostReply(InstallHelper.lostReply(raw)))
     XCTAssertFalse(
-      InstallHelper.isLostReply(NSError(domain: "LatestInstallerErrorDomain", code: 1)),
+      InstallHelper.isLostReply(NSError(domain: "UpkeepInstallerErrorDomain", code: 1)),
       "a failure the helper reports itself is not a lost reply")
     let root = try disposableDirectory()
     let app = try FixtureApp.make(in: root, version: "1.0")
@@ -536,7 +536,7 @@ final class AppStoreInstallGateTest: XCTestCase {
         }
         return helperComesBack && poll >= 3 ? true : nil
       }
-      operation.installPackage = { _, _, _, _ in throw LatestError.installHelperCommunicationFailed
+      operation.installPackage = { _, _, _, _ in throw UpkeepError.installHelperCommunicationFailed
       }
       try operation.takeBackup()
       await operation.installThroughHelper(

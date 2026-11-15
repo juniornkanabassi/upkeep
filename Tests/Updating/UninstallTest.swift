@@ -1,7 +1,7 @@
 // Copyright © 2026 Junior Nkana Bassi. Licensed under GPL-3.0; see LICENSE.md.
 import XCTest
 import Darwin
-@testable import Latest
+@testable import Upkeep
 
 @MainActor
 final class UninstallTest: XCTestCase {
@@ -261,7 +261,7 @@ final class UninstallTest: XCTestCase {
     XCTAssertEqual(plan.items.count, 1)
     let running = UninstallPlanner(home: planner.home, systemLibrary: planner.systemLibrary, copies: { _ in [] }, isRunning: { _ in true })
     XCTAssertThrowsError(try running.plan(app: app, withData: false))
-    let (_, own, ownPlanner) = try fixture(id: "com.juniornkanabassi.Updater")
+    let (_, own, ownPlanner) = try fixture(id: "com.juniornkanabassi.Upkeep")
     XCTAssertThrowsError(try ownPlanner.plan(app: own, withData: true))
   }
 
