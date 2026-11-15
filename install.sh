@@ -81,12 +81,15 @@ if running; then
   ! running || { print -u2 "Upkeep did not quit. Nothing was changed."; exit 1; }
 fi
 
+/usr/bin/ditto "$SOURCE_APP" "$STAGE"
+verify_signed "$STAGE"
+
 # Identity migration: SMAppService owns the registrations, so boot out their exact
 # labels before removing legacy SMJobBless files. Never reset all background items.
 # No privileged work in disposable installs. Unsettled journals require the old app's recovery.
 if [[ -z "${UPKEEP_INSTALL_ROOT:-}" ]]; then
   OLD_ROOT="$HOME/Library/Application Support/Updater"
-  if [[ -d "$OLD_ROOT/transactions" && -n "$(/usr/bin/find "$OLD_ROOT/transactions" -type f -print -quit)" ]]; then
+  if [[ -d "$OLD_ROOT/transactions" && -n "$(/usr/bin/find "$OLD_ROOT/transactions" -type f -name '*.json' -print -quit)" ]]; then
     print -u2 "Pending Updater transactions remain. Reopen the previous app and finish recovery before replacing it."
     exit 1
   fi
@@ -102,9 +105,13 @@ if [[ -z "${UPKEEP_INSTALL_ROOT:-}" ]]; then
       print -u2 "A package installer is running. Wait for it to finish before replacing Upkeep."
       exit 1
     fi
-    /usr/bin/osascript <<'APPLESCRIPT'
+    if ! /usr/bin/osascript <<'APPLESCRIPT'
 do shell script "/bin/launchctl bootout system/com.juniornkanabassi.Updater.helper.daemon 2>/dev/null || true; /bin/launchctl bootout system/com.juniornkanabassi.Updater.helper 2>/dev/null || true; /bin/rm -f /Library/PrivilegedHelperTools/com.juniornkanabassi.Updater.helper /Library/LaunchDaemons/com.juniornkanabassi.Updater.helper.plist" with administrator privileges
 APPLESCRIPT
+    then
+      print -u2 "Legacy helper removal was cancelled or failed. Nothing was replaced; run the installer again when ready."
+      exit 1
+    fi
     for label in com.juniornkanabassi.Updater.helper.daemon com.juniornkanabassi.Updater.helper; do
       if /bin/launchctl print "system/$label" >/dev/null 2>&1; then
         print -u2 "The previous helper is still registered. Nothing was replaced."
@@ -114,8 +121,6 @@ APPLESCRIPT
   fi
 fi
 
-/usr/bin/ditto "$SOURCE_APP" "$STAGE"
-verify_signed "$STAGE"
 if [[ -e "$DEST" ]]; then /bin/mv "$DEST" "$BACKUP"; fi
 [[ -n "${UPKEEP_INSTALL_ROOT:-}" && -n "${UPKEEP_INSTALL_TEST_PAUSE:-}" ]] && sleep "$UPKEEP_INSTALL_TEST_PAUSE"  # test installs only: window to interrupt mid-replace
 if ! /bin/mv "$STAGE" "$DEST"; then print -u2 "Could not install $DEST."; exit 1; fi

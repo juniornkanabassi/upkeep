@@ -5,9 +5,7 @@ import Foundation
 /// Runs an updater command as the user (never root), stdin closed so nothing can prompt,
 /// all output in a per-run log. It is never killed part way: callers wait for it to exit.
 enum ToolProcess {
-  static let defaultLogDirectory = FileManager.default.urls(
-    for: .applicationSupportDirectory, in: .userDomainMask)[0]
-    .appendingPathComponent("Upkeep/logs")
+  static var defaultLogDirectory: URL { ControlPaths.dataRoot.appendingPathComponent("logs") }
 
   struct RootRefused: Error {}
 

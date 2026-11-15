@@ -552,3 +552,10 @@ struct UpdateJob: Sendable {
 
 /// What held jobs wait on; it runs (and so finishes) only when its hold is released.
 final class HoldBarrier: BlockOperation, @unchecked Sendable {}
+
+// Startup failures remain visible to status callers while preventing new installations.
+extension UpkeepIdentityMigration {
+  static func holdUpdates(after error: Error) {
+    UpdateQueue.shared.hold(target: nil, lockKey: nil, reason: error.localizedDescription)
+  }
+}

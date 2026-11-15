@@ -59,6 +59,30 @@ class InstallLayoutTest(unittest.TestCase):
         self.assertIn('with administrator privileges', script)
         self.assertNotIn('backgroundtaskmanagement', script)
 
+    def test_staged_signature_is_verified_before_admin_step(self):
+        script = INSTALL.read_text()
+        self.assertLess(script.index('verify_signed "$STAGE"'), script.index('do shell script'))
+        self.assertIn('Legacy helper removal was cancelled or failed', script)
+        self.assertIn('-type f -name \'*.json\' -print -quit', script)
+
+    def test_old_helper_runtime_paths_are_removed(self):
+        root = INSTALL.parent
+        helper = (root / "Upkeep/Platform/InstallHelper/UpdateInstallHelper.swift").read_text()
+        for obsolete in ("retireOldIdentity", "oldIdentity", "oldActive", "legacyService", "InstallHelper.registration"):
+            self.assertNotIn(obsolete, helper)
+        project = (root / "Upkeep.xcodeproj/project.pbxproj").read_text()
+        self.assertNotIn("com.juniornkanabassi.Updater.helper", project)
+        self.assertNotIn("com.juniornkanabassi.Upkeep.helper.plist", project)
+
+    def test_logs_use_migration_aware_root_and_conflict_is_reported(self):
+        root = INSTALL.parent
+        tool = (root / "Upkeep/Platform/Vendors/ToolProcess.swift").read_text()
+        brew = (root / "Upkeep/Platform/Homebrew/Homebrew.swift").read_text()
+        self.assertIn('ControlPaths.dataRoot.appendingPathComponent("logs")', tool)
+        self.assertIn('logDirectory: URL = ToolProcess.defaultLogDirectory', brew)
+        main = (root / "Upkeep/App/main.swift").read_text()
+        self.assertIn('UpkeepIdentityMigration.holdUpdates(after: error)', main)
+
 
 if __name__ == "__main__":
     unittest.main()

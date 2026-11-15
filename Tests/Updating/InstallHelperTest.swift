@@ -127,10 +127,12 @@ final class InstallHelperTest: XCTestCase {
     XCTAssertEqual(events, ["verify", "probe", "refresh", "probe", "verify", "probe"])
   }
 
-  func testLegacyRegistrationMigratesOnlyWhenTheHelperIsNotBusy() async throws {
+  func testStaleHelperRefreshesOnlyWhenNotBusy() async throws {
     for busy in [false, true] {
       let backend = ReadinessFixture(
-        probes: [.success(busy ? .busy : .idle), .success(.idle)], needsMigration: true)
+        probes: [
+          .success(InstallHelperHealth(signature: Data([0]), isInstalling: busy)), .success(.idle),
+        ])
       do {
         try await InstallHelperReadiness(backend: backend).prepare()
         XCTAssertFalse(busy, "Migration must wait for the active installation")
@@ -143,32 +145,21 @@ final class InstallHelperTest: XCTestCase {
     }
   }
 
-  func testBundledMigrationPreservesTheAuthenticatedEndpointAndLaunchConstraint() throws {
-    func plist(_ label: String) throws -> NSDictionary {
-      let url = Bundle.main.bundleURL.appendingPathComponent(
-        "Contents/Library/LaunchDaemons/\(label).plist")
-      return try XCTUnwrap(
-        PropertyListSerialization.propertyList(from: Data(contentsOf: url), format: nil)
-          as? NSDictionary)
-    }
-    let legacy = try plist(UpdateInstallerIdentity.service)
-    let current = try plist(UpdateInstallerIdentity.daemon)
-    XCTAssertEqual(current["Label"] as? String, UpdateInstallerIdentity.daemon)
-    XCTAssertNotEqual(current["Label"] as? String, legacy["Label"] as? String)
-    for key in ["BundleProgram", "MachServices", "SpawnConstraint"] {
-      XCTAssertEqual(current[key] as? NSObject, legacy[key] as? NSObject, key)
-    }
-  }
-
-  func testRenamedHelperKeepsOldPlistsOnlyForUnregistration() throws {
-    for label in ["com.juniornkanabassi.Updater.helper", "com.juniornkanabassi.Updater.helper.daemon"] {
-      let url = Bundle.main.bundleURL.appendingPathComponent("Contents/Library/LaunchDaemons/\(label).plist")
-      let plist = try XCTUnwrap(NSDictionary(contentsOf: url))
-      XCTAssertEqual(plist["Label"] as? String, label)
-    }
-    XCTAssertEqual(UpdateInstallerIdentity.service, "com.juniornkanabassi.Upkeep.helper")
+  func testOnlyCurrentDaemonIsPackagedWithAuthenticatedEndpoint() throws {
+    let directory = Bundle.main.bundleURL.appendingPathComponent("Contents/Library/LaunchDaemons")
+    let files = try FileManager.default.contentsOfDirectory(atPath: directory.path)
+    XCTAssertEqual(files.sorted(), [UpdateInstallerIdentity.daemon + ".plist"])
+    let plist = try XCTUnwrap(NSDictionary(contentsOf: directory.appendingPathComponent(files[0])))
+    XCTAssertEqual(plist["Label"] as? String, UpdateInstallerIdentity.daemon)
+    XCTAssertEqual(plist["BundleProgram"] as? String, "Contents/Resources/UpkeepInstaller")
+    XCTAssertEqual(
+      plist["MachServices"] as? [String: Bool], [UpdateInstallerIdentity.service: true])
+    let constraint = try XCTUnwrap(plist["SpawnConstraint"] as? [String: String])
+    XCTAssertEqual(constraint["signing-identifier"], UpdateInstallerIdentity.service)
+    XCTAssertEqual(constraint["team-identifier"], "M6L2VW4W5Z")
     XCTAssertTrue(UpdateInstallerIdentity.appRequirement.contains("com.juniornkanabassi.Upkeep"))
-    XCTAssertTrue(UpdateInstallerIdentity.helperRequirement.contains("com.juniornkanabassi.Upkeep.helper"))
+    XCTAssertTrue(
+      UpdateInstallerIdentity.helperRequirement.contains("com.juniornkanabassi.Upkeep.helper"))
   }
 
   func testFailedPrerequisiteDoesNotContactOrRefreshDaemon() async {
@@ -382,7 +373,6 @@ private actor ReadinessFixture: InstallHelperReadinessBackend {
   var events: [String] = []
   var probes: [Result<InstallHelperHealth, Error>]
   var verificationFails = false
-  private let needsMigration: Bool
   private var probeStarted: XCTestExpectation?
   private var probeContinuation: CheckedContinuation<Void, Never>?
   func suspendNextProbe(started: XCTestExpectation) { probeStarted = started }
@@ -391,15 +381,14 @@ private actor ReadinessFixture: InstallHelperReadinessBackend {
     probeContinuation = nil
   }
 
-  init(probes: [Result<InstallHelperHealth, Error>], needsMigration: Bool = false) {
+  init(probes: [Result<InstallHelperHealth, Error>]) {
     self.probes = probes
-    self.needsMigration = needsMigration
   }
   func failVerification() { verificationFails = true }
-  func verify() throws -> (signature: Data, needsMigration: Bool) {
+  func verify() throws -> Data {
     events.append("verify")
     if verificationFails { throw InstallHelperError.installHelperRequiresApproval }
-    return (Data([1]), needsMigration)
+    return Data([1])
   }
   func probe() async throws -> InstallHelperHealth {
     events.append("probe")

@@ -137,9 +137,7 @@ actor Homebrew {
 
   init(
     brew: URL?, environment: [String: String] = [:],
-    logDirectory: URL = FileManager.default.urls(
-      for: .applicationSupportDirectory, in: .userDomainMask)[0]
-      .appendingPathComponent("Upkeep/logs")
+    logDirectory: URL = ToolProcess.defaultLogDirectory
   ) {
     self.brew = brew
     self.environment = environment

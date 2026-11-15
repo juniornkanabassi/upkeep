@@ -10,8 +10,6 @@
 		ABCDEF300000000000000002 /* UpkeepIdentityMigration.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABCDEF200000000000000000; };
 		ABCDEF300000000000000001 /* UpkeepIdentityMigration.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABCDEF200000000000000000; };
 		ABCDEF300000000000000000 /* UpkeepIdentityMigration.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABCDEF200000000000000000; };
-		ABCDEF100000000000000001 /* com.juniornkanabassi.Updater.helper.plist in CopyFiles */ = {isa = PBXBuildFile; fileRef = ABCDEF000000000000000001 /* com.juniornkanabassi.Updater.helper.plist */; };
-		ABCDEF100000000000000000 /* com.juniornkanabassi.Updater.helper.daemon.plist in CopyFiles */ = {isa = PBXBuildFile; fileRef = ABCDEF000000000000000000 /* com.juniornkanabassi.Updater.helper.daemon.plist */; };
 		A45E2D904C41E99C38BC0D9A = {isa = PBXBuildFile; fileRef = 6BA995B1C78BDCCD4E7DB6C6; };
 		78EBDE34C3521EB985F8983B = {isa = PBXBuildFile; fileRef = BFC31B3555366FF95E05463E; };
 		C41E6C9C0D1219D1491C0559 = {isa = PBXBuildFile; fileRef = BE423DA92AB72C200704E417; };
@@ -61,7 +59,6 @@
 		505062242F0DBECC00998F84 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 505062202F0DBECC00998F84 /* main.swift */; };
 		505062252F0DBECC00998F84 /* UpdateInstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = 505062212F0DBECC00998F84 /* UpdateInstaller.swift */; };
 		505062262F0DBEE000998F84 /* UpdateInstallerProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 505062222F0DBECC00998F84 /* UpdateInstallerProtocol.swift */; };
-		505062292F0DBF0D00998F84 /* com.juniornkanabassi.Upkeep.helper.plist in CopyFiles */ = {isa = PBXBuildFile; fileRef = 5050621F2F0DBECC00998F84 /* com.juniornkanabassi.Upkeep.helper.plist */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		5050622A2F0DBFD300998F84 /* UpkeepInstaller in Resources */ = {isa = PBXBuildFile; fileRef = 505062112F0DBE5900998F84 /* UpkeepInstaller */; };
 		5058BA3A21202BA7003F332B /* IconCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5058BA3921202BA7003F332B /* IconCache.swift */; };
 		5058E9C327863FC80028F564 /* App.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5058E9C227863FC80028F564 /* App.swift */; };
@@ -294,10 +291,7 @@
 			dstPath = Contents/Library/LaunchDaemons;
 			dstSubfolderSpec = 1;
 			files = (
-				505062292F0DBF0D00998F84 /* com.juniornkanabassi.Upkeep.helper.plist in CopyFiles */,
 				A11009010000000000000001 /* com.juniornkanabassi.Upkeep.helper.daemon.plist in CopyFiles */,
-				ABCDEF100000000000000001 /* com.juniornkanabassi.Updater.helper.plist in CopyFiles */,
-				ABCDEF100000000000000000 /* com.juniornkanabassi.Updater.helper.daemon.plist in CopyFiles */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -325,8 +319,6 @@
 
 /* Begin PBXFileReference section */
 		ABCDEF200000000000000000 /* UpkeepIdentityMigration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpkeepIdentityMigration.swift; sourceTree = "<group>"; };
-		ABCDEF000000000000000001 /* com.juniornkanabassi.Updater.helper.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = com.juniornkanabassi.Updater.helper.plist; sourceTree = "<group>"; };
-		ABCDEF000000000000000000 /* com.juniornkanabassi.Updater.helper.daemon.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = com.juniornkanabassi.Updater.helper.daemon.plist; sourceTree = "<group>"; };
 		6BA995B1C78BDCCD4E7DB6C6 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../Features/Library/UninstallSheet.swift; sourceTree = "<group>"; };
 		BFC31B3555366FF95E05463E = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../Features/Library/AppDetailSections.swift; sourceTree = "<group>"; };
 		BE423DA92AB72C200704E417 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../Features/Library/LibraryPages.swift; sourceTree = "<group>"; };
@@ -392,7 +384,6 @@
 		5048573F22C81DCF00C52C48 /* CommerceKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CommerceKit.framework; path = ../../../../../../System/Library/PrivateFrameworks/CommerceKit.framework; sourceTree = "<group>"; };
 		5048574122C81DF800C52C48 /* StoreFoundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = StoreFoundation.framework; path = ../../../../../../System/Library/PrivateFrameworks/StoreFoundation.framework; sourceTree = "<group>"; };
 		505062112F0DBE5900998F84 /* UpkeepInstaller */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = UpkeepInstaller; sourceTree = BUILT_PRODUCTS_DIR; };
-		5050621F2F0DBECC00998F84 /* com.juniornkanabassi.Upkeep.helper.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "com.juniornkanabassi.Upkeep.helper.plist"; sourceTree = "<group>"; };
 		505062202F0DBECC00998F84 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 		505062212F0DBECC00998F84 /* UpdateInstaller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateInstaller.swift; sourceTree = "<group>"; };
 		505062222F0DBECC00998F84 /* UpdateInstallerProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateInstallerProtocol.swift; sourceTree = "<group>"; };
@@ -758,10 +749,7 @@
 		5050621E2F0DBEB700998F84 /* UpdateInstaller */ = {
 			isa = PBXGroup;
 			children = (
-				5050621F2F0DBECC00998F84 /* com.juniornkanabassi.Upkeep.helper.plist */,
 				A11009010000000000000002 /* com.juniornkanabassi.Upkeep.helper.daemon.plist */,
-				ABCDEF000000000000000001 /* com.juniornkanabassi.Updater.helper.plist */,
-				ABCDEF000000000000000000 /* com.juniornkanabassi.Updater.helper.daemon.plist */,
 				505062202F0DBECC00998F84 /* main.swift */,
 				505062212F0DBECC00998F84 /* UpdateInstaller.swift */,
 			);

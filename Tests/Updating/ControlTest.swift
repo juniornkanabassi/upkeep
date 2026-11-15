@@ -56,7 +56,8 @@ final class ControlTest: XCTestCase {
               harness.updating.update(app, isBulkUpdate: true)
             }
           },
-          updating: updating, history: history, readinessWait: .milliseconds(400),
+          updating: updating, history: history,
+          heldBecause: { harness?.queue.heldBecause ?? [] }, readinessWait: .milliseconds(400),
           setIgnored: { ignored, app in
             harness?.apps =
               harness?.apps.map {
@@ -262,6 +263,16 @@ final class ControlTest: XCTestCase {
     XCTAssertEqual(history.data?["entries"]?.arrayValue?.first?.objectValue?["state"], "updated")
     let overview = try await request(harness, "status")
     XCTAssertEqual(overview.data?["jobs"]?.arrayValue?.count, 1)
+  }
+
+  func testStatusReportsMigrationConflictAndHoldsUpdates() async throws {
+    let harness = try harness()
+    let message = "Both Upkeep and its old data folder exist. Updates are paused."
+    harness.queue.hold(target: nil, lockKey: nil, reason: message)
+    let response = try await request(harness, "status")
+    XCTAssertEqual(response.data?["held"], .array([.string(message)]))
+    XCTAssertFalse(
+      harness.queue.reserveForUninstall(harness.home.appendingPathComponent("fixture.app")))
   }
 
   func testHandOffsNeedAnExplicitFlagAndDeclinedQuitsReportNeedsQuit() async throws {
@@ -930,7 +941,32 @@ final class InstallLog: Sendable {
       try checkMigration(oldData: true, newData: false, pending: true)
     }
 
-    private func checkMigration(oldData: Bool, newData: Bool, pending: Bool) throws {
+    func testNonJournalFilesDoNotDeferMigration() throws {
+      try checkMigration(oldData: true, newData: false, pending: false, debris: true)
+    }
+
+    func testEmptyOldFolderUsesExistingNewFolder() throws {
+      let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+      defer { try? FileManager.default.removeItem(at: root) }
+      for name in ["Updater", "Upkeep"] {
+        try FileManager.default.createDirectory(
+          at: root.appendingPathComponent(name), withIntermediateDirectories: true)
+      }
+      let oldDomain = "MigrationOld." + UUID().uuidString
+      let newDomain = "MigrationNew." + UUID().uuidString
+      defer {
+        UserDefaults.standard.removeTestPersistentDomain(forName: oldDomain)
+        UserDefaults.standard.removeTestPersistentDomain(forName: newDomain)
+      }
+      XCTAssertTrue(
+        try UpkeepIdentityMigration.migrate(
+          support: root, oldDomain: oldDomain, newDomain: newDomain))
+      XCTAssertEqual(UpkeepIdentityMigration.root(in: root), root.appendingPathComponent("Upkeep"))
+    }
+
+    private func checkMigration(oldData: Bool, newData: Bool, pending: Bool, debris: Bool = false)
+      throws
+    {
       let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
       let old = root.appendingPathComponent(UpkeepIdentityMigration.oldFolder)
       let new = root.appendingPathComponent("Upkeep")
@@ -947,17 +983,21 @@ final class InstallLog: Sendable {
         try Data("history".utf8).write(to: old.appendingPathComponent("history.jsonl"))
         defaults.setPersistentDomain(
           [
-            "IgnoredApps": ["fixture"], "Appearance": "dark",
-            "NSWindow Frame main": "discard", "testOnly": true,
+            "IgnoredAppsKey": ["fixture"], "applicationAppearance": "dark",
+            "AutoUpdateAppPaths": ["/fixture.app"], "directoryPaths": ["/fixtures"],
+            "BackgroundCheckIntervalHours": 4, "latest": "keep",
+            "NSWindow Frame main": "discard", "upkeep-test-fixture": true,
           ], forName: oldDomain)
       }
       if newData {
         try FileManager.default.createDirectory(at: new, withIntermediateDirectories: true)
       }
-      if pending {
+      if pending || debris {
         let journals = old.appendingPathComponent("transactions")
         try FileManager.default.createDirectory(at: journals, withIntermediateDirectories: true)
-        try Data("pending".utf8).write(to: journals.appendingPathComponent("fixture.json"))
+        for name in pending ? ["fixture.json"] : ["fixture.tmp", ".DS_Store"] {
+          try Data("pending".utf8).write(to: journals.appendingPathComponent(name))
+        }
       }
       if oldData && newData {
         XCTAssertThrowsError(
@@ -973,9 +1013,16 @@ final class InstallLog: Sendable {
         oldDomain: oldDomain, newDomain: newDomain)
       XCTAssertEqual(migrated, oldData && !pending)
       if pending {
-        XCTAssertEqual(UpkeepIdentityMigration.root(in: root).path, old.path)
+        let selected = UpkeepIdentityMigration.root(in: root)
+        _ = try ToolProcess.newLog(named: "fixture", in: selected.appendingPathComponent("logs"))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: new.path))
+        XCTAssertFalse(
+          try UpkeepIdentityMigration.migrate(
+            support: root, defaults: defaults, oldDomain: oldDomain, newDomain: newDomain))
+        XCTAssertEqual(selected.path, old.path)
         XCTAssertEqual(
-          defaults.persistentDomain(forName: newDomain)?["Appearance"] as? String, "dark")
+          defaults.persistentDomain(forName: newDomain)?["applicationAppearance"] as? String, "dark"
+        )
         XCTAssertNotNil(defaults.persistentDomain(forName: oldDomain))
         XCTAssertTrue(
           FileManager.default.fileExists(
@@ -987,10 +1034,14 @@ final class InstallLog: Sendable {
           "history")
         XCTAssertTrue((defaults.persistentDomain(forName: oldDomain) ?? [:]).isEmpty)
         let result = defaults.persistentDomain(forName: newDomain)
-        XCTAssertEqual(result?["Appearance"] as? String, "dark")
-        XCTAssertEqual(result?["IgnoredApps"] as? [String], ["fixture"])
+        XCTAssertEqual(result?["applicationAppearance"] as? String, "dark")
+        XCTAssertEqual(result?["IgnoredAppsKey"] as? [String], ["fixture"])
+        XCTAssertEqual(result?["AutoUpdateAppPaths"] as? [String], ["/fixture.app"])
+        XCTAssertEqual(result?["directoryPaths"] as? [String], ["/fixtures"])
+        XCTAssertEqual(result?["BackgroundCheckIntervalHours"] as? Int, 4)
+        XCTAssertEqual(result?["latest"] as? String, "keep")
         XCTAssertNil(result?["NSWindow Frame main"])
-        XCTAssertNil(result?["testOnly"])
+        XCTAssertNil(result?["upkeep-test-fixture"])
         XCTAssertFalse(
           try UpkeepIdentityMigration.migrate(
             support: root, defaults: defaults,

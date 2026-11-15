@@ -60,7 +60,7 @@ extension InstallHelperHealth {
 }
 
 protocol InstallHelperReadinessBackend: Sendable {
-  func verify() async throws -> (signature: Data, needsMigration: Bool)
+  func verify() async throws -> Data
   func probe() async throws -> InstallHelperHealth
   func refresh() async throws
 }
@@ -91,10 +91,9 @@ actor InstallHelperReadiness {
   }
 
   private func checkReadiness(mayRefresh: Bool, outcomeUnknown: Bool) async throws -> Bool {
-    let registration = try await backend.verify()
-    let expected = registration.signature
+    let expected = try await backend.verify()
     let health = try? await backend.probe()
-    if let health, health.signature == expected, !registration.needsMigration {
+    if let health, health.signature == expected {
       if outcomeUnknown && health.isInstalling {
         throw InstallHelperError.unavailable(
           "The helper is still installing an update. Wait for it to finish before trying again."

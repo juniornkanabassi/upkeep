@@ -133,7 +133,7 @@ if isRunningUnitTests {
     }
   } catch {
     fputs("Upkeep migration stopped: \(error.localizedDescription)\n", stderr)
-    exit(1)
+    UpkeepIdentityMigration.holdUpdates(after: error)
   }
   UpkeepApplication.main()
 }

@@ -22,7 +22,7 @@ enum InstallHelper {
 
   /// Verifies that the install helper is registered and approved.
   static func verifyAvailability() throws(InstallHelperError) {
-    try verifyAvailability(of: registration.service)
+    try verifyAvailability(of: currentService)
   }
 
   private static func verifyAvailability(of service: SMAppService) throws(InstallHelperError) {
@@ -39,28 +39,7 @@ enum InstallHelper {
   }
 
   static func prepareForUpdates() async throws {
-    try await retireOldIdentity()
     try await readiness.prepare()
-  }
-
-  // SMAppService registrations belong to the bundled daemon plists, not files in
-  // /Library/PrivilegedHelperTools. Keep the old plists only for this migration.
-  private static var oldServices: [SMAppService] {
-    ["com.juniornkanabassi.Updater.helper.daemon", "com.juniornkanabassi.Updater.helper"]
-      .map { SMAppService.daemon(plistName: $0 + ".plist") }
-  }
-
-  private static func retireOldIdentity() async throws {
-    for service in oldServices
-    where service.status == .enabled || service.status == .requiresApproval {
-      // A lost reply or a busy old helper is never permission to terminate an installer.
-      let health = try await LiveInstallHelperBackend().probe(oldIdentity: true)
-      guard !health.isInstalling else {
-        throw InstallHelperError.unavailable(
-          "The previous update helper is still installing. Wait for it to finish.")
-      }
-      try await service.unregister()
-    }
   }
 
   private static let readiness = InstallHelperReadiness(backend: LiveInstallHelperBackend())
@@ -68,7 +47,7 @@ enum InstallHelper {
   /// Registers the helper or opens System Settings if approval is required.
   static func installHelper() throws {
     _ = try verifySigning()
-    let service = registration.service
+    let service = currentService
     switch service.status {
     case .notFound, .notRegistered:
       try service.register()
@@ -84,20 +63,6 @@ enum InstallHelper {
 
   private static var currentService: SMAppService {
     SMAppService.daemon(plistName: UpdateInstallerIdentity.daemon + ".plist")
-  }
-
-  private static var legacyService: SMAppService {
-    SMAppService.daemon(plistName: UpdateInstallerIdentity.service + ".plist")
-  }
-
-  private static var registration: (service: SMAppService, needsMigration: Bool) {
-    let current = currentService
-    let legacy = legacyService
-    let needsMigration = legacy.status == .enabled || legacy.status == .requiresApproval
-    if needsMigration && (current.status == .notRegistered || current.status == .notFound) {
-      return (legacy, true)
-    }
-    return (current, needsMigration)
   }
 
   /// A root daemon must have a stable Apple-issued signing identity. Do not
@@ -150,8 +115,7 @@ enum InstallHelper {
   /// Whether the running helper answers and reports no installation in progress; nil when
   /// it cannot be reached. Used after a lost reply, when the installer may still be running.
   static func isIdle() async -> Bool? {
-    let oldActive = oldServices.contains { $0.status == .enabled || $0.status == .requiresApproval }
-    guard let health = try? await LiveInstallHelperBackend().probe(oldIdentity: oldActive) else {
+    guard let health = try? await LiveInstallHelperBackend().probe() else {
       return nil
     }
     return !health.isInstalling
@@ -221,21 +185,17 @@ enum InstallHelper {
   }
 
   struct LiveInstallHelperBackend: InstallHelperReadinessBackend {
-    func verify() throws -> (signature: Data, needsMigration: Bool) {
+    func verify() throws -> Data {
       let signature = try InstallHelper.verifySigning()
-      let registration = InstallHelper.registration
-      try InstallHelper.verifyAvailability(of: registration.service)
-      return (signature, registration.needsMigration)
+      try InstallHelper.verifyAvailability()
+      return signature
     }
 
     func refresh() async throws {
       try InstallHelper.verifyAvailability()
-      // An older app copy can re-register the legacy job after migration.
-      // Retire both registrations so only one job owns the shared XPC endpoint.
-      for service in [InstallHelper.legacyService, InstallHelper.currentService] {
-        if service.status == .enabled || service.status == .requiresApproval {
-          try await service.unregister()
-        }
+      let service = InstallHelper.currentService
+      if service.status == .enabled || service.status == .requiresApproval {
+        try await service.unregister()
       }
       // Background Task Management settles separately from process exit.
       try await Task.sleep(for: .milliseconds(500))
@@ -245,18 +205,10 @@ enum InstallHelper {
       try InstallHelper.verifyAvailability()
     }
 
-    func probe() async throws -> InstallHelperHealth { try await probe(oldIdentity: false) }
-
-    func probe(oldIdentity: Bool) async throws -> InstallHelperHealth {
-      let oldService = "com.juniornkanabassi.Updater.helper"
+    func probe() async throws -> InstallHelperHealth {
       let connection = NSXPCConnection(
-        machServiceName: oldIdentity ? oldService : UpdateInstallerIdentity.service,
-        options: .privileged)
-      connection.setCodeSigningRequirement(
-        oldIdentity
-          ? UpdateInstallerIdentity.helperRequirement.replacingOccurrences(
-            of: UpdateInstallerIdentity.service, with: oldService)
-          : UpdateInstallerIdentity.helperRequirement)
+        machServiceName: UpdateInstallerIdentity.service, options: .privileged)
+      connection.setCodeSigningRequirement(UpdateInstallerIdentity.helperRequirement)
       connection.remoteObjectInterface = NSXPCInterface(with: UpdateInstallerProtocol.self)
       defer { connection.invalidate() }
       return try await withCheckedThrowingContinuation { continuation in

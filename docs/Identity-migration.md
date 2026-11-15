@@ -9,27 +9,28 @@ Upstream credits, copyright headers, historical release notes and vendor API nam
 Before constructing production services, launch moves `~/Library/Application Support/Updater`
 to `~/Library/Application Support/Upkeep` if only the old directory exists. It copies the old
 preferences into the new bundle domain, preserving existing new keys, excluding window/frame
-and test keys, then removes the old preferences. The migration is recorded in history.
+and recorded test-window keys, then removes the old preferences. The migration is recorded in history.
 
 If journals remain, it keeps using the old data directory and lets normal recovery honour the
 original paths and writer locks. Relaunch after recovery settles to finish migration. If both
-data directories exist, startup stops and keeps both rather than merging or overwriting them.
+data directories exist and the old folder is empty, Upkeep uses the new folder. Otherwise it
+keeps both, logs a clear conflict and pauses updates; `upkeep status` reports the reason under
+`held`. Resolve the conflict and relaunch before updating.
 `UPKEEP_HOME` bypasses live migration for isolated test runs.
 
 ## Helper registration
 
 The helper is an SMAppService daemon inside the app bundle, not an SMJobBless installation.
-Old daemon plists remain packaged solely so the service can be unregistered. Both sides of
+Only the current daemon plist is packaged. Both sides of
 new helper communication require the new identity and the existing Apple signing team.
 
-The old helper authenticates the old app identity. A new app cannot normally obtain its idle
-reply. Migration therefore fails closed if an old registered helper cannot prove it is idle;
-it does not terminate an unknown installation. The installer has a fallback: with no pending
-old journals and no package installer running, one system administrator prompt boots out the
-two exact old launchd labels and removes the two exact legacy helper files, only if present.
+The installer alone retires the old identity. After staging and verifying the new signed app,
+with no pending JSON journals and no package installer running, one system administrator
+prompt boots out the two exact old launchd labels and removes the two exact legacy helper
+files, only if present. Cancellation or failure leaves the installed app untouched and prints
+an explanation. Temporary files and `.DS_Store` do not count as pending journals.
 It verifies the labels are gone before replacing the app. This needs a signed live migration
-check by the lead before rollout. Apple documents that unregister terminates a running daemon:
-https://developer.apple.com/documentation/servicemanagement/smappservice/unregister()
+check by the lead before rollout.
 
 ## Lead's live steps (not performed in this worktree)
 

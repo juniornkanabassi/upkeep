@@ -10,8 +10,9 @@ Revision d9a62c3, branch rename-upkeep, 15 November 2026.
   between the upkeep executable and Upkeep app module.
 - Version 0.12.0, build 23, with version-matched release notes.
 - Startup migration copies settings and moves the data folder. Existing new settings win;
-  window/frame/test keys are excluded. Pending journals keep their original paths for recovery.
-  Both folders present causes a safe stop without merging or deleting data.
+  window/frame and recorded test-window keys are excluded. Pending JSON journals keep their
+  original paths for recovery. A nonempty old folder beside a new folder pauses updates and
+  reports the conflict in CLI status; an empty old folder permits the new folder.
 - Installer accepts the previous bundle identity, preserves the old app until verification,
   stops on pending old journals, and conditionally retires exact old helper labels/files through
   one macOS administrator prompt. Disposable installs never invoke that cleanup.
@@ -39,19 +40,19 @@ collision, historical-note/JSON-key expectations and two fixture assertions; fin
 ## Retained names
 
 Latest remains in upstream credit text, copyright/file headers and historical release notes.
-Updater remains in migration recognition code, old daemon plists and their project references,
+Updater remains in migration recognition code, installer exact-label cleanup,
 legacy-install fixtures, historical notes and generic/vendor APIs such as Sparkle's SPUUpdater.
 The data schema key allowsLatestFallback and vendor release URLs retain their actual meaning.
-These are not active fork identities. The two old daemon plists are only for unregistering old
-SMAppService jobs. The new helper never accepts the old app identity.
+These are not active fork identities. Only the current daemon plist is packaged.
+The new helper never accepts the old app identity.
 
 ## Live migration handoff and limits
 
 Follow `docs/Identity-migration.md` for the exact ordered procedure. The lead must verify the
 signed migration before rollout, especially Background Task Management behaviour when retiring
 an old SMAppService registration from the new identity. The installer checks exact launchd labels;
-no global BTM reset is used. The app refuses to unregister an unreachable old helper because its
-idle state cannot be established across the changed signing identity.
+no global BTM reset is used. Runtime helper registration and health checks use only the new
+identity. The verified staged installer owns retirement of the old labels.
 
 Keep both old/new data folders if startup reports a collision and reconcile deliberately. Pending
 journals must settle through the previous app before replacement; direct first-launch migration
