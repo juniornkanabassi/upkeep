@@ -21,6 +21,7 @@ final class ControlService {
     var heldBecause: @MainActor () -> [String] = { UpdateQueue.shared.heldBecause }
     /// How long a command waits for readiness before answering not_ready.
     var readinessWait: Duration = .seconds(20)
+    var setIgnored: (@MainActor (Bool, App) -> Void)? = nil
   }
 
   private let dependencies: Dependencies
@@ -37,12 +38,14 @@ final class ControlService {
       let updatesOnly = Self.flag(args["updates"])
       // Versions are only known once the first check has run; names after discovery.
       if let notReady = await ready(needsCheck: updatesOnly) { return notReady }
-      return list(updatesOnly: updatesOnly)
+      guard ["app", "driver", "all"].contains(args["kind"] ?? "app") else { return .failure("usage", "Unknown kind.") }
+      return list(updatesOnly: updatesOnly, full: Self.flag(args["full"]), driversOnly: args["kind"] == "driver")
     case "check": return await check(args)
     case "update":
       if let notReady = await ready(needsCheck: true) { return notReady }
       return update(args, caller: request.caller)
-    case "status": return status(jobID: args["job"])
+    case "status": return await statusWaiting(args)
+    case "set": return configure(args)
     case "history": return history(limit: Int(args["limit"] ?? "") ?? 20)
     default:
       return .failure(
@@ -73,12 +76,17 @@ final class ControlService {
 
   // MARK: Commands
 
-  private func list(updatesOnly: Bool) -> ControlResponse {
+  private func list(updatesOnly: Bool, full: Bool, driversOnly: Bool) -> ControlResponse {
     let apps = dependencies.apps()
+      .filter { _ in !driversOnly }
       .filter { !updatesOnly || (($0.updateAvailable || $0.availabilityUnknown) && !$0.isIgnored) }
       .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
     var data: [String: JSONValue] = [
-      "apps": .array(apps.map(describe)), "count": JSONValue(apps.count),
+      "apps": .array(apps.map { app in
+        guard !full, let object = describe(app).objectValue else { return describe(app) }
+        let fields: Set<String> = ["name", "bundleId", "path", "installed", "available", "availability", "capability", "jobId", "handOffLabel", "ignored"]
+        return .object(object.filter { fields.contains($0.key) })
+      }), "count": JSONValue(apps.count),
     ]
     // A check in progress means some versions may still change.
     if dependencies.isChecking() { data["checking"] = .bool(true) }
@@ -88,7 +96,7 @@ final class ControlService {
   private func check(_ args: [String: String]) async -> ControlResponse {
     let joined = dependencies.isChecking()
     if !joined { dependencies.startCheck(Self.flag(args["refresh"])) }
-    let timeout = min(max(Double(args["wait"] ?? "") ?? 120, 0), 600)
+    let timeout = min(max(Double(args["wait"] ?? "") ?? 45, 0), 50)
     let deadline = Date().addingTimeInterval(timeout)
     while dependencies.isChecking(), Date() < deadline {
       try? await Task.sleep(for: .milliseconds(250))
@@ -101,7 +109,7 @@ final class ControlService {
         ? "Check finished: \(waiting) update\(waiting == 1 ? "" : "s") available."
         : "The check is still running; run `updater status` later.",
       data: [
-        "finished": .bool(finished), "joined": .bool(joined),
+        "checking": .bool(!finished), "finished": .bool(finished), "joined": .bool(joined),
         "updatesAvailable": JSONValue(waiting),
       ])
   }
@@ -201,6 +209,31 @@ final class ControlService {
         "label": .string(Self.label(app)),
         "message": "Updates through \(Self.label(app)). Pass --allow-handoff to open it.",
       ])
+  }
+
+  private func configure(_ args: [String: String]) -> ControlResponse {
+    guard let target = args["target"], let setting = args["ignore"], ["on", "off"].contains(setting) else {
+      return .failure("usage", "Use set <target> --ignore on|off.")
+    }
+    let matches = dependencies.apps().filter { $0.bundleIdentifier == target || $0.fileURL.path == target }
+    guard let app = matches.first else { return .failure("not_found", "No matching app.") }
+    guard matches.count == 1 else { return .failure("ambiguous", "Name a copy by absolute path.") }
+    guard let setIgnored = dependencies.setIgnored else { return .failure("unsupported", "Ignore settings are unavailable.") }
+    setIgnored(setting == "on", app)
+    return ControlResponse(ok: true, data: ["bundleId": .string(app.bundleIdentifier), "ignored": .bool(setting == "on")])
+  }
+
+  private func statusWaiting(_ args: [String: String]) async -> ControlResponse {
+    let deadline = ContinuousClock.now + .seconds(min(max(Double(args["wait"] ?? "") ?? 0, 0), 50))
+    while true {
+      let response = status(jobID: args["job"])
+      let running: Bool
+      if let job = response.data?["job"]?.objectValue {
+        running = ["running", "waiting"].contains(job["state"]?.stringValue ?? "")
+      } else { running = response.ok && dependencies.isChecking() }
+      if !running || ContinuousClock.now >= deadline || Task.isCancelled { return response }
+      try? await Task.sleep(for: .milliseconds(100))
+    }
   }
 
   private func status(jobID: String?) -> ControlResponse {

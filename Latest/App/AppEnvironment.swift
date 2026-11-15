@@ -167,7 +167,8 @@ extension AppEnvironment {
         updateAllCandidates: { checking.updateAllCandidates },
         updateAll: { checking.updateAll() },
         updating: updating,
-        history: .shared))
+        history: .shared,
+        setIgnored: { [coordinator] ignored, app in coordinator.appProvider.setIgnoredState(ignored, for: app) }))
     do {
       let server = try ControlServer(path: ControlPaths.socket) { request in
         await service.handle(request)

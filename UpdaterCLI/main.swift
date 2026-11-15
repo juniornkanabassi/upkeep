@@ -1,23 +1,26 @@
 // Copyright © 2026 Junior Nkana Bassi. Licensed under GPL-3.0; see LICENSE.md.
 // `updater` (Contents/Helpers/updater): controls the running Updater over its socket, after
 // Talk & Read's talkread helper. Exit codes: 0 ok, 1 Updater refused or failed, 2 usage,
-// 3 Updater is not running and could not be started.
+// 3 app unavailable, 4 sandbox blocks socket, 5 busy or timeout.
 
 import Darwin
 import Foundation
 
 // MARK: Command table (also the MCP tool list: `updater mcp-manifest`)
 
-struct Param {
-  enum Kind { case string, integer, switchFlag }
+struct Param: Sendable {
+  enum Kind: Sendable { case string, integer, switchFlag }
   let name: String
   let kind: Kind
   let help: String
   var required = false
   var positional = false
+  var values: [String]? = nil
+  var minimum: Int? = nil
+  var maximum: Int? = nil
 }
 
-struct Command {
+struct Command: Sendable {
   let name: String
   let summary: String
   let example: String
@@ -31,7 +34,11 @@ let commands: [Command] = [
     summary:
       "List the apps Updater found, with installed and available versions, capability (install, vendorTool, handOff, unsupported) and any running job id. Read-only.",
     example: "list --updates",
-    params: [Param(name: "updates", kind: .switchFlag, help: "Only apps with an update waiting.")],
+    params: [
+      Param(name: "updates", kind: .switchFlag, help: "Only apps with an update waiting."),
+      Param(name: "kind", kind: .string, help: "Item kind.", values: ["app", "driver", "all"]),
+      Param(name: "full", kind: .switchFlag, help: "Include all available fields."),
+    ],
     timeout: 60),
   Command(
     name: "check",
@@ -41,8 +48,8 @@ let commands: [Command] = [
     params: [
       Param(
         name: "refresh", kind: .switchFlag, help: "Skip cached App Store and Homebrew answers."),
-      Param(name: "wait", kind: .integer, help: "Seconds to wait for it, 0 to 600; default 120."),
-    ], timeout: 630),
+      Param(name: "wait", kind: .integer, help: "Seconds to wait for it, 0 to 50; default 45.", minimum: 0, maximum: 50),
+    ], timeout: 55),
   Command(
     name: "update",
     summary:
@@ -63,13 +70,19 @@ let commands: [Command] = [
       "Without a job id: whether a check is running, how many updates wait, and recent jobs. With one: that job's state (waiting, running, updated, noChange, failed, needsQuit, needsPermission).",
     example: "status 3f2c…",
     params: [
-      Param(name: "job", kind: .string, help: "Job id from `updater update`.", positional: true)
-    ]),
+      Param(name: "job", kind: .string, help: "Job id from `updater update`.", positional: true),
+      Param(name: "wait", kind: .integer, help: "Wait up to 50 seconds for a job or check.", minimum: 0, maximum: 50)
+    ], timeout: 55),
   Command(
     name: "history",
     summary: "Recorded update outcomes, newest first. Read-only.",
     example: "history --limit 10",
-    params: [Param(name: "limit", kind: .integer, help: "1 to 500; default 20.")]),
+    params: [Param(name: "limit", kind: .integer, help: "1 to 500; default 20.", minimum: 1, maximum: 500)]),
+  Command(name: "set", summary: "Set the existing ignore preference for an app (all copies of its bundle id).",
+    example: "set com.example.App --ignore on", params: [
+      Param(name: "target", kind: .string, help: "Bundle id or absolute app path.", required: true, positional: true),
+      Param(name: "ignore", kind: .string, help: "Ignore updates for this app.", required: true, values: ["on", "off"])
+    ]),
 ]
 
 // MARK: Output
@@ -190,7 +203,7 @@ func help(_ command: Command? = nil) {
     print(
       "Global options: --json  --caller <name>  --request-id <id>  --timeout <seconds>  --help")
     print(
-      "Exit codes: 0 ok, 1 Updater refused or failed, 2 usage, 3 Updater is not running and could not be started."
+      "Exit codes: 0 ok, 1 Updater refused or failed, 2 usage, 3 app unavailable, 4 sandbox blocks socket, 5 busy or timeout."
     )
     return
   }
@@ -209,30 +222,7 @@ func help(_ command: Command? = nil) {
 }
 
 func manifest() {
-  func schema(_ param: Param) -> [String: Any] {
-    let type =
-      switch param.kind {
-      case .string: "string"
-      case .integer: "integer"
-      case .switchFlag: "boolean"
-      }
-    return ["type": type, "description": param.help]
-  }
-  let tools: [[String: Any]] = commands.map { command in
-    [
-      "name": command.name, "description": command.summary,
-      "inputSchema": [
-        "type": "object",
-        "properties": Dictionary(
-          uniqueKeysWithValues: command.params.map { ($0.name, schema($0)) }),
-        "required": command.params.filter(\.required).map(\.name),
-        "additionalProperties": false,
-      ] as [String: Any],
-    ]
-  }
-  guard let data = try? JSONSerialization.data(withJSONObject: tools, options: [.sortedKeys]) else {
-    fail("internal_error", "Could not encode the tool list.", exit: 1)
-  }
+  let data = try! JSONSerialization.data(withJSONObject: MCPServer.tools, options: [.sortedKeys])
   print(String(decoding: data, as: UTF8.self))
 }
 
@@ -268,6 +258,10 @@ guard let first = commandName() else {
 if first == "help" {
   let topic = argv.drop { $0 != "help" }.dropFirst().first
   help(topic.flatMap { name in commands.first { $0.name == name } })
+  exit(0)
+}
+if first == "mcp" {
+  MCPServer.run()
   exit(0)
 }
 if first == "mcp-manifest" {
@@ -355,6 +349,12 @@ for param in command.params where param.positional && !rest.isEmpty {
   args[param.name] = value
 }
 if let extra = rest.first { usage("Unexpected argument \(extra).", command) }
+for param in command.params {
+  guard let value = args[param.name] else { continue }
+  if let values = param.values, !values.contains(value) { usage("Invalid value for \(param.name).", command) }
+  if let min = param.minimum, (Int(value) ?? Int.min) < min { usage("Value below minimum for \(param.name).", command) }
+  if let max = param.maximum, (Int(value) ?? Int.max) > max { usage("Value above maximum for \(param.name).", command) }
+}
 for param in command.params where param.required && args[param.name] == nil {
   usage("Missing \(param.name).", command)
 }
@@ -385,7 +385,7 @@ func appRunning(exact: String?) -> Bool {
 
 /// Starts a closed Updater in the background (no window, no focus) and sends once its socket
 /// answers. Only `app_not_running` is retried, which means nothing was sent.
-func launchAndSend() throws -> ControlResponse {
+func launchAndSend(_ request: ControlRequest, timeout: Double) throws -> ControlResponse {
   let executable = (Bundle.main.executableURL ?? URL(fileURLWithPath: CommandLine.arguments[0]))
     .resolvingSymlinksInPath()
   let app = executable.deletingLastPathComponent().deletingLastPathComponent()
@@ -437,7 +437,7 @@ do {
     // A test root (UPDATER_HOME) never starts the real app.
     && ProcessInfo.processInfo.environment["UPDATER_HOME"] == nil
   {
-    response = try launchAndSend()
+    response = try launchAndSend(request, timeout: timeout)
   }
   if json {
     printJSON(response)
@@ -446,9 +446,9 @@ do {
   } else {
     stderrLine("\(response.code ?? "error"): \(response.message ?? "The request failed.")")
   }
-  exit(response.ok ? 0 : 1)
+  exit(response.ok ? 0 : ControlClient.exitCode(for: response.code))
 } catch let error as ControlError {
-  fail(error.code, error.message, exit: error.code == "app_not_running" ? 3 : 1)
+  fail(error.code, error.message, exit: ControlClient.exitCode(for: error.code))
 } catch {
   fail("failed", "\(error)", exit: 1)
 }

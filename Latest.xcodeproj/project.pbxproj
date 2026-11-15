@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A8A000000000000000000001 = {isa = PBXBuildFile; fileRef = A8A000000000000000000002; };
 		A11009010000000000000001 /* com.juniornkanabassi.Updater.helper.daemon.plist in CopyFiles */ = {isa = PBXBuildFile; fileRef = A11009010000000000000002 /* com.juniornkanabassi.Updater.helper.daemon.plist */; };
 		04DB211D3099FDA076EC8F2F /* ReleaseNotesVersionSelection.swift in Sources */ = {isa = PBXBuildFile; fileRef = A492B900BB42DB5CA9C73A45 /* ReleaseNotesVersionSelection.swift */; };
 		04F39C68659809071B935212 /* VersionParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50E4EB062B17DACB00A70A7D /* VersionParser.swift */; };
@@ -229,7 +230,6 @@
 		FA14348696E34FA08D9828A6 /* ControlProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1507BE189104DD0848B7A61 /* ControlProtocol.swift */; };
 		C10FAA75E5604C78A0647979 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 468A48037A38445B9DE444E6 /* main.swift */; };
 		07E6A74E71264F188D2AF4A0 /* updater in CopyFiles */ = {isa = PBXBuildFile; fileRef = CBA556AC01574B8EABE38C3D /* updater */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
-		B8E03E01EF81414E9113D4B0 /* mcp in Resources */ = {isa = PBXBuildFile; fileRef = EDB1439536064F48BC0293DA /* mcp */; };
 		00E7C3B027FC4EFE8CFBA011 /* ControlTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77780ABE8A704FDC979ECC73 /* ControlTest.swift */; };
 		018068F9ECCE4A92B54AD847 /* ControlFollowUpTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B2652E06EEC4171962ED608 /* ControlFollowUpTest.swift */; };
 		71DF633AD3CD4D739BF4C381 /* CatalogueInstall.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAB991672A5749A485405C99 /* CatalogueInstall.swift */; };
@@ -301,6 +301,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		A8A000000000000000000002 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPServer.swift; sourceTree = "<group>"; };
 		A11009010000000000000002 /* com.juniornkanabassi.Updater.helper.daemon.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "com.juniornkanabassi.Updater.helper.daemon.plist"; sourceTree = "<group>"; };
 		002A891730B3DDB4A59CA5A1 /* ToolbarProgressPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolbarProgressPresentation.swift; sourceTree = "<group>"; };
 		0267A1D6626D912543A3A797 /* UpdateActionPresentationTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateActionPresentationTest.swift; sourceTree = "<group>"; };
@@ -605,7 +606,6 @@
 		B1507BE189104DD0848B7A61 /* ControlProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControlProtocol.swift; sourceTree = "<group>"; };
 		75954CC973DE4753A247D989 /* ControlService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControlService.swift; sourceTree = "<group>"; };
 		CBA556AC01574B8EABE38C3D /* updater */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = updater; sourceTree = BUILT_PRODUCTS_DIR; };
-		EDB1439536064F48BC0293DA /* mcp */ = {isa = PBXFileReference; lastKnownFileType = folder; path = mcp; sourceTree = "<group>"; };
 		77780ABE8A704FDC979ECC73 /* ControlTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControlTest.swift; sourceTree = "<group>"; };
 		0B2652E06EEC4171962ED608 /* ControlFollowUpTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControlFollowUpTest.swift; sourceTree = "<group>"; };
 		CAB991672A5749A485405C99 /* CatalogueInstall.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogueInstall.swift; sourceTree = "<group>"; };
@@ -668,7 +668,6 @@
 				F06000000000000000000002 /* TestOffscreen.h */,
 				F06000000000000000000003 /* TestOffscreenTests.swift */,
 				C30BD9FB01014E0C8B034CFB /* UpdaterCLI */,
-				EDB1439536064F48BC0293DA /* mcp */,
 				50290E731E53EB6A00133E3D /* Latest */,
 				50C81D6A1FBADC5900324C2E /* Tests */,
 				5050621E2F0DBEB700998F84 /* UpdateInstaller */,
@@ -1244,6 +1243,7 @@
 			isa = PBXGroup;
 			children = (
 				468A48037A38445B9DE444E6 /* main.swift */,
+				A8A000000000000000000002,
 			);
 			path = UpdaterCLI;
 			sourceTree = "<group>";
@@ -1458,7 +1458,6 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				B8E03E01EF81414E9113D4B0 /* mcp in Resources */,
 				5050622A2F0DBFD300998F84 /* UpdaterInstaller in Resources */,
 				50BC19E328230D41005945E8 /* InfoPlist.strings in Resources */,
 				50290E791E53EB6A00133E3D /* Assets.xcassets in Resources */,
@@ -1734,6 +1733,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				C10FAA75E5604C78A0647979 /* main.swift in Sources */,
+				A8A000000000000000000001,
 				FA14348696E34FA08D9828A6 /* ControlProtocol.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

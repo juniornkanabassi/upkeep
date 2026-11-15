@@ -56,7 +56,10 @@ final class ControlTest: XCTestCase {
               harness.updating.update(app, isBulkUpdate: true)
             }
           },
-          updating: updating, history: history, readinessWait: .milliseconds(400)))
+          updating: updating, history: history, readinessWait: .milliseconds(400),
+          setIgnored: { ignored, app in
+            harness?.apps = harness?.apps.map { $0.bundleIdentifier == app.bundleIdentifier ? $0.with(ignoredState: ignored) : $0 } ?? []
+          }))
       harness = self
     }
 
@@ -191,7 +194,7 @@ final class ControlTest: XCTestCase {
     harness.apps = [app]
     let row = UpdateActionViewModel(app: app, updating: harness.updating)
 
-    let listed = try await request(harness, "list", ["updates": "1"])
+    let listed = try await request(harness, "list", ["updates": "1", "full": "1"])
     let entry = try XCTUnwrap(listed.data?["apps"]?.arrayValue?.first?.objectValue)
     XCTAssertEqual(entry["installed"], "1.0")
     XCTAssertEqual(entry["available"], "1.1")
@@ -505,7 +508,7 @@ final class ControlTest: XCTestCase {
             availabilityUnknown: true)),
         isIgnored: false)
     ]
-    let listed = try await request(harness, "list", ["updates": "1"])
+    let listed = try await request(harness, "list", ["updates": "1", "full": "1"])
     let entry = try XCTUnwrap(listed.data?["apps"]?.arrayValue?.first?.objectValue)
     XCTAssertEqual(entry["availability"], "unknown")
     XCTAssertNil(entry["available"], "no invented version")
@@ -514,6 +517,48 @@ final class ControlTest: XCTestCase {
     let cli = helpers.appendingPathComponent("Helpers/updater")
     let output = try await run(cli, ["list", "--updates"], home: harness.home)
     XCTAssertTrue(output.output.contains("check in Creative Cloud"), output.output)
+  }
+
+  func testStatusWaitReturnsWhenJobSettles() async throws {
+    let harness = try harness()
+    let gate = AsyncStream<Void>.makeStream()
+    let app = try fixtureApp(harness, name: "Waiting", gate: gate.stream)
+    harness.apps = [app]
+    let started = try await updateResults(harness, ["target": app.fileURL.path])
+    let id = try XCTUnwrap(started.first?["jobId"]?.stringValue)
+    Task { try? await Task.sleep(for: .milliseconds(250)); gate.continuation.finish() }
+    let start = ContinuousClock.now
+    let response = try await request(harness, "status", ["job": id, "wait": "2"])
+    XCTAssertEqual(response.data?["job"]?.objectValue?["state"], "updated")
+    XCTAssertLessThan(ContinuousClock.now - start, .seconds(2))
+  }
+
+  func testConfigureUsesExistingIgnorePreference() async throws {
+    let harness = try harness()
+    let app = try fixtureApp(harness, name: "Ignore")
+    harness.apps = [app]
+    let changed = try await request(harness, "set", ["target": app.fileURL.path, "ignore": "on"])
+    XCTAssertTrue(changed.ok)
+    XCTAssertTrue(harness.apps[0].isIgnored)
+    let invalid = try await request(harness, "set", ["target": app.fileURL.path, "ignore": "maybe"])
+    XCTAssertFalse(invalid.ok)
+    let cleared = try await request(harness, "set", ["target": app.bundleIdentifier, "ignore": "off"])
+    XCTAssertTrue(cleared.ok)
+    XCTAssertFalse(harness.apps[0].isIgnored)
+  }
+
+  func testCheckWaitAndCompactList() async throws {
+    let harness = try harness()
+    harness.apps = [try fixtureApp(harness, name: "Compact")]
+    let response = try await request(harness, "check", ["wait": "0"])
+    XCTAssertEqual(response.data?["checking"], true)
+    let compact = try await request(harness, "list")
+    XCTAssertNil(compact.data?["apps"]?.arrayValue?.first?.objectValue?["source"])
+    let full = try await request(harness, "list", ["full": "1"])
+    XCTAssertNotNil(full.data?["apps"]?.arrayValue?.first?.objectValue?["source"])
+    XCTAssertEqual(ControlClient.exitCode(for: "sandbox_blocked"), 4)
+    XCTAssertEqual(ControlClient.exitCode(for: "not_ready"), 5)
+    XCTAssertEqual(ControlClient.exitCode(for: "forbidden"), 1)
   }
 
   // MARK: The built CLI and MCP adapter
@@ -575,33 +620,22 @@ final class ControlTest: XCTestCase {
   }
 
   func testMCPToolsCallTheSameSocket() async throws {
-    let candidates =
-      (ProcessInfo.processInfo.environment["PATH"] ?? "").split(separator: ":").map(String.init)
-      + ["/opt/homebrew/bin", "/usr/local/bin"]
-      + ((try? FileManager.default.contentsOfDirectory(
-        atPath: NSHomeDirectory() + "/.local/opt")) ?? []).map {
-        NSHomeDirectory() + "/.local/opt/\($0)/bin"
-      }
-    guard
-      let node = candidates.map({ URL(fileURLWithPath: $0).appendingPathComponent("node") })
-        .first(where: { FileManager.default.isExecutableFile(atPath: $0.path) })
-    else { throw XCTSkip("Node.js is not installed; the MCP adapter needs it.") }
     let harness = try harness()
     let app = try fixtureApp(harness, name: "Mcp")
     harness.apps = [app]
-    let adapter = helpers.appendingPathComponent("Resources/mcp/updater-mcp.mjs")
+    let adapter = helpers.appendingPathComponent("Helpers/updater")
     let messages = [
       #"{"jsonrpc":"2.0","id":1,"method":"initialize"}"#,
       #"{"jsonrpc":"2.0","id":2,"method":"tools/list"}"#,
-      #"{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"list","arguments":{"updates":true}}}"#,
+      #"{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"list","arguments":{"updatesOnly":true}}}"#,
       #"{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"update","arguments":{"target":"com.example.mcp"}}}"#,
       #"{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"update","arguments":{"nope":1}}}"#,
     ]
     // The adapter answers each line as it comes; closing stdin ends it once replies are written.
     let output = try await Task.detached {
       let process = Process()
-      process.executableURL = node
-      process.arguments = [adapter.path]
+      process.executableURL = adapter
+      process.arguments = ["mcp"]
       var environment = ProcessInfo.processInfo.environment
       environment["UPDATER_HOME"] = harness.home.path
       environment["UPDATER_CLI"] =
@@ -629,15 +663,20 @@ final class ControlTest: XCTestCase {
     {
       $0["name"] as? String
     }
-    XCTAssertEqual(tools, ["list", "check", "update", "status", "history"])
-    func text(_ id: Int) -> String {
-      (((reply(id)?["result"] as? [String: Any])?["content"] as? [[String: Any]])?.first?["text"]
-        as? String) ?? ""
+    XCTAssertEqual(tools, ["list", "check", "update", "status", "history", "configure"])
+    let definitions = (reply(2)?["result"] as? [String: Any])?["tools"] as? [[String: Any]]
+    XCTAssertEqual((definitions?.first?["annotations"] as? [String: Bool])?["readOnlyHint"], true)
+    XCTAssertNotNil(definitions?.first?["outputSchema"])
+    XCTAssertEqual((reply(1)?["result"] as? [String: Any])?["protocolVersion"] as? String, "2025-11-25")
+    func structured(_ id: Int) -> [String: Any]? {
+      (reply(id)?["result"] as? [String: Any])?["structuredContent"] as? [String: Any]
     }
-    XCTAssertTrue(text(3).contains(#""available":"1.1""#), text(3))
-    XCTAssertTrue(text(4).contains(#""status":"started""#), text(4))
-    XCTAssertTrue(text(4).contains(#""version":1"#))
-    XCTAssertNotNil(reply(5)?["error"], "unknown arguments are refused before the CLI runs")
+    XCTAssertEqual(structured(3)?["ok"] as? Bool, true)
+    XCTAssertEqual(structured(4)?["ok"] as? Bool, true)
+    XCTAssertEqual(structured(5)?["ok"] as? Bool, false)
+    XCTAssertEqual((reply(5)?["result"] as? [String: Any])?["isError"] as? Bool, true)
+    XCTAssertNil(reply(5)?["error"])
+
   }
 }
 

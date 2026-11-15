@@ -169,10 +169,11 @@ private func uptime() -> TimeInterval { ProcessInfo.processInfo.systemUptime }
 private func wait(_ fd: Int32, _ events: Int16, until deadline: TimeInterval) -> Bool {
   while true {
     let left = deadline - uptime()
-    guard left > 0 else { return false }
+    guard left > 0, !Task.isCancelled else { return false }
     var descriptor = pollfd(fd: fd, events: events, revents: 0)
-    let result = poll(&descriptor, 1, Int32(min(left * 1000, 60_000).rounded(.up)))
+    let result = poll(&descriptor, 1, Int32(min(left * 1000, 100).rounded(.up)))
     if result > 0 { return true }
+    if result == 0 { continue }
     if result < 0 && errno != EINTR { return false }
   }
 }
@@ -281,7 +282,7 @@ actor ControlReplayCache {
 
 final class ControlServer: @unchecked Sendable {
   /// Only these change anything, so only these are replay-protected.
-  static let mutatingCommands: Set<String> = ["check", "update"]
+  static let mutatingCommands: Set<String> = ["check", "update", "set", "uninstall_preview", "uninstall_confirm"]
   static let maxRequest = 1_048_576
   static let maxResponse = 8_388_608
 
@@ -480,6 +481,15 @@ final class ControlServer: @unchecked Sendable {
 // MARK: Client
 
 enum ControlClient {
+  static func exitCode(for code: String?) -> Int32 {
+    switch code {
+    case "app_not_running": 3
+    case "sandbox_blocked": 4
+    case "not_ready", "timeout", "busy": 5
+    default: 1
+    }
+  }
+
   /// Sends one line of raw bytes and returns the reply line; used directly by protocol tests.
   static func exchange(_ payload: Data, with path: URL, timeout: Double) throws -> Data {
     let socketPath = path.path
@@ -494,6 +504,9 @@ enum ControlClient {
     guard connectSocket(address, length, fd: fd) else {
       if errno == ENOENT || errno == ECONNREFUSED {
         throw ControlError("app_not_running", "Updater is not running (nothing at \(socketPath)).")
+      }
+      if errno == EPERM || errno == EACCES {
+        throw ControlError("sandbox_blocked", "The sandbox blocks Updater's socket; use the MCP server or run outside the sandbox.")
       }
       throw errnoError("socket_connect_error", socketPath)
     }

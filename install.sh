@@ -94,9 +94,9 @@ if [[ -n "${UPDATER_BIN_DIR:-}" || -z "${UPDATER_INSTALL_ROOT:-}" ]]; then
 else
   print "Test install: no CLI link."
 fi
-SHIM="$DEST/Contents/Resources/mcp/updater-mcp.mjs"
-print "MCP for Claude Code: claude mcp add updater -- node \"$SHIM\""
+print "MCP for Claude Code: claude mcp add -s user updater -- \"$DEST/Contents/Helpers/updater\" mcp"
 print 'MCP for Codex (~/.codex/config.toml):'
 print '[mcp_servers.updater]'
-print 'command = "node"'
-print "args = [\"$SHIM\"]"
+print "command = \"$DEST/Contents/Helpers/updater\""
+print 'args = ["mcp"]'
+print 'tool_timeout_sec = 180'

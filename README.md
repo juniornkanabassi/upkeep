@@ -114,21 +114,22 @@ Add `--json` for one line of JSON. Exit codes: 0 ok, 1 Updater refused or failed
 - `handedOff` means Updater opened the other updater. `handOff` means it did not: the reply names where to update and why, and suggests `--allow-handoff` only when that would open it.
 - A request retried with the same `--request-id` within five minutes acts once and gets the first answer again. Nothing is ever sent or published.
 
-To connect the MCP server (needs Node.js 18 or later) to Claude Code:
+To connect the built-in MCP server to Claude Code:
 
 ```sh
-claude mcp add updater -- node "/Applications/JuniorOS Apps/Updater.app/Contents/Resources/mcp/updater-mcp.mjs"
+claude mcp add -s user updater -- "/Applications/JuniorOS Apps/Updater.app/Contents/Helpers/updater" mcp
 ```
 
 For Codex, add this to `~/.codex/config.toml`:
 
 ```toml
 [mcp_servers.updater]
-command = "node"
-args = ["/Applications/JuniorOS Apps/Updater.app/Contents/Resources/mcp/updater-mcp.mjs"]
+command = "/Applications/JuniorOS Apps/Updater.app/Contents/Helpers/updater"
+args = ["mcp"]
+tool_timeout_sec = 180
 ```
 
-The tools (`list`, `check`, `update`, `status`, `history`) come from `updater mcp-manifest`, so they always match the command.
+The tools (`list`, `check`, `update`, `status`, `history`, `configure`) come from `updater mcp-manifest`, so they always match the command.
 
 ## Apps from the Homebrew catalogue
 
@@ -191,3 +192,17 @@ Both use the Apple Development identity for team M6L2VW4W5Z and build under `/pr
 Based on [Latest by Max Langer and contributors](https://github.com/mangerlahn/Latest) and the [Ertyoii fork](https://github.com/Ertyoii/Latest). Modifications © 2026 Junior Nkana Bassi; upstream and dependency notices are retained. Full GPL and Sparkle notices are available offline in Help → Licenses.
 
 Distributed under [GPL version 3](LICENSE.md). Binary distributions must include corresponding source. This software comes without warranty.
+
+The MCP server is built into the Swift CLI and needs no Node installation. It negotiates
+2025-11-25 or 2025-06-18, returns structured results, and accepts cancellation of waits.
+Use `updater status <job> --wait 50` to await an update. `check` waits at most 50 seconds
+(default 45) and returns `checking: true` when more time is needed. Cancelling a wait
+never cancels an already accepted update.
+
+`list` is compact by default; use `--full` for source details. `--kind app|driver|all`
+selects the item kind (driver discovery is supplied by the driver service in Round 8C).
+`updater set <target> --ignore on|off` changes the same bundle-id preference as the GUI.
+MCP uses `configure {target, ignored}`, `list {updatesOnly, fields: "full"}` and
+`status {jobId, wait}`. There is no per-app automatic-update setting.
+Exit codes: 0 success, 1 refused/failed, 2 usage, 3 app unavailable,
+4 socket blocked by sandbox, 5 busy/timeout (retryable).

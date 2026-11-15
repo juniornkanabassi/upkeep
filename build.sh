@@ -13,7 +13,6 @@ PRODUCTS="$DERIVED/Build/Products/Release"
 APP="$PRODUCTS/Updater.app"
 HELPER="$APP/Contents/Resources/UpdaterInstaller"
 CLI="$APP/Contents/Helpers/updater"
-MCP="$APP/Contents/Resources/mcp/updater-mcp.mjs"
 
 # Stale products (an old App.icns, a renamed helper) must not end up in the zip.
 /bin/rm -rf "$PRODUCTS"
@@ -25,7 +24,6 @@ MCP="$APP/Contents/Resources/mcp/updater-mcp.mjs"
 /usr/bin/codesign --verify --deep --strict "$APP"
 /usr/bin/codesign --verify --strict "$HELPER"
 /usr/bin/codesign --verify --strict "$CLI"
-[[ -f "$MCP" ]] || { print -u2 "The MCP adapter is missing from $MCP."; exit 1; }
 
 # Identity checks: bundle ID, helper signing identifier, and Junior's team on both binaries.
 plist() { /usr/libexec/PlistBuddy -c "Print $2" "$1"; }
