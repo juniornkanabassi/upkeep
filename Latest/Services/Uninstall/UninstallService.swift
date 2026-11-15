@@ -62,7 +62,10 @@ final class UninstallService {
     return object
   }
 
-  func confirm(token: String, app: URL?, withData: Bool?, caller: String) async throws -> [String: JSONValue] {
+  /// `excluding` lets the window's sheet untick previewed groups; it can only narrow the plan.
+  func confirm(
+    token: String, app: URL?, withData: Bool?, caller: String, excluding: Set<String> = []
+  ) async throws -> [String: JSONValue] {
     guard let ticket = tickets[token], ticket.caller == caller, ticket.expires > now() else {
       throw ControlError("invalid_token", "The preview token is missing, expired, consumed or belongs to another caller.")
     }
@@ -79,11 +82,11 @@ final class UninstallService {
     let current = try planner.plan(app: target, withData: ticket.plan.withData)
     guard current.siblingCopies == ticket.plan.siblingCopies else { throw ControlError("path_changed", "Installed copies changed; preview again.") }
     // Validate the entire selection before the first move, then again immediately per move.
-    let selected = ticket.plan.items.filter(\.selected)
+    let selected = ticket.plan.items.filter { $0.selected && !excluding.contains($0.path) }
     for item in selected { try planner.validate(item) }
     let before = BundleCollector.collectBundle(at: target)
-    var results: [[String: JSONValue]] = ticket.plan.items.filter { !$0.selected }.map {
-      result($0, "skipped", "Personal data was not selected.")
+    var results: [[String: JSONValue]] = ticket.plan.items.filter { !$0.selected || excluding.contains($0.path) }.map {
+      result($0, "skipped", Self.notSelected)
     }
     let admin = selected.filter(\.needsAdmin)
     var adminFailed = false
@@ -129,10 +132,12 @@ final class UninstallService {
     return completed
   }
 
+  static let notSelected = "Not selected, so it stays."
+
   private func outcome(_ results: [[String: JSONValue]]) -> [String: JSONValue] {
     // Unselected personal data is expected; failed or skipped selected items are not success.
     let complete = results.allSatisfy {
-      $0["status"] == "removed" || $0["message"] == "Personal data was not selected."
+      $0["status"] == "removed" || $0["message"] == .string(Self.notSelected)
     }
     return ["ok": .bool(complete), "results": .array(results.map(JSONValue.object))]
   }

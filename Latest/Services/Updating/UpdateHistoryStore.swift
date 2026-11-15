@@ -19,6 +19,11 @@ struct UpdateHistoryEntry: Codable, Equatable, Sendable {
   /// For a hand-off: where to, why, whether anything opened. Missing in records written
   /// before 0.7.0, which are read conservatively (nothing is claimed to have opened).
   var handOff: HandOffNote?
+  /// Who asked for it (a raw control caller such as `mcp-claude-code-…`, `upkeep` for automatic
+  /// updates); nil means the person at the window. Missing in records before 0.11.0.
+  var caller: String?
+  /// Other callers whose identical request attached to the same job.
+  var followers: [String]?
 
   init(
     before: App.Bundle, after: App.Bundle?, outcome: UpdateOutcome, handOff: HandOffNote? = nil
@@ -73,9 +78,15 @@ final class UpdateHistoryStore: Sendable {
   init(fileURL: URL) { self.fileURL = fileURL }
 
   func record(_ entry: UpdateHistoryEntry) {
+    var entry = entry
+    // A finished job hands its callers to the record; setting changes name their own caller.
+    if !entry.outcome.isSettingChange, let job = AgentActivity.shared.finish(entry.appPath) {
+      entry.caller = entry.caller ?? job.starter.caller
+      if !job.followers.isEmpty { entry.followers = job.followers.map(\.caller) }
+    }
     latest.withLock { cache in
       if cache == nil { cache = Self.load(from: fileURL) }
-      cache?[entry.appPath] = entry
+      if !entry.outcome.isSettingChange { cache?[entry.appPath] = entry }
       let encoder = JSONEncoder()
       encoder.dateEncodingStrategy = .iso8601
       guard var line = try? encoder.encode(entry) else { return }
@@ -132,7 +143,9 @@ final class UpdateHistoryStore: Sendable {
     var entries = [String: UpdateHistoryEntry]()
     // A torn final line from a crash is skipped rather than discarding the history.
     for line in data.split(separator: 0x0A) {
-      if let entry = try? decoder.decode(UpdateHistoryEntry.self, from: line) {
+      if let entry = try? decoder.decode(UpdateHistoryEntry.self, from: line),
+        !entry.outcome.isSettingChange
+      {
         entries[entry.appPath] = entry
       }
     }
@@ -147,7 +160,7 @@ struct UpdateOutcomeError: LocalizedError, Sendable {
   init?(outcome: UpdateOutcome) {
     switch outcome {
     case .failed, .needsQuit, .needsPermission: self.outcome = outcome
-    case .updated, .noChange, .handedOff, .uninstalled: return nil
+    case .updated, .noChange, .handedOff, .uninstalled, .settingChanged: return nil
     }
   }
 
@@ -159,7 +172,7 @@ struct UpdateOutcomeError: LocalizedError, Sendable {
       "This update needs administrator rights: the app belongs to another account, or Homebrew needs your password (Updater copies the brew command for you)."
     case .needsPermission:
       "The last attempt was blocked by App Management. Allow Updater in System Settings → Privacy & Security → App Management, then Retry."
-    case .updated, .noChange, .handedOff, .uninstalled: nil
+    case .updated, .noChange, .handedOff, .uninstalled, .settingChanged: nil
     }
   }
 }

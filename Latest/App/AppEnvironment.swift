@@ -20,6 +20,7 @@ final class AppEnvironment: ObservableObject {
   let settingsViewModel: SettingsViewModel
   let commands: AppCommands
   let menuBar: MenuBarViewModel
+  let preferences: AppPreferences
   private var startupTask: Task<Void, Never>?
   private var backgroundChecks: BackgroundCheckScheduler?
   private var notifications: UpdateNotificationController?
@@ -43,7 +44,8 @@ final class AppEnvironment: ObservableObject {
     },
     updateCheckingService: UpdateCheckingService? = nil,
     updatesListViewModel: UpdatesListViewModel? = nil,
-    settingsViewModel: SettingsViewModel? = nil
+    settingsViewModel: SettingsViewModel? = nil,
+    preferences: AppPreferences? = nil
   ) {
     let updateCheckingService =
       updateCheckingService
@@ -69,6 +71,12 @@ final class AppEnvironment: ObservableObject {
         directoryStoreFactory: directoryStoreFactory
       )
 
+    self.preferences =
+      preferences
+      ?? AppPreferences(
+        defaults: .standard,
+        setIgnoredState: { [coordinator] in coordinator.appProvider.setIgnoredState($0, for: $1) },
+        history: .shared)
     self.searchFocusController = searchFocusController
     self.coordinator = coordinator
     self.updating = updating
@@ -123,6 +131,7 @@ final class AppEnvironment: ObservableObject {
     self.notifications = notifications
     coordinator.checkCompletion = { [weak self, settings] completion in
       self?.initialCheckFinished = true
+      self?.runAutomaticUpdates(completion.apps)
       let includeExternal = settings.includeAppsWithLimitedSupport
       Task {
         await notifications.checkFinished(completion, includeExternal: includeExternal)
@@ -138,6 +147,14 @@ final class AppEnvironment: ObservableObject {
         checkForUpdates: { checks.fire(.launch) }
       )
     }
+  }
+
+  /// Per-app automatic updates, after every finished check, through the same scheduler.
+  func runAutomaticUpdates(_ apps: [App]) {
+    let candidates = preferences.autoUpdateCandidates(
+      in: apps, eligible: updateCheckingService.updateCandidates(from:),
+      isRunning: { !AppLifecycle.live.runningApps($0).isEmpty })
+    updateCheckingService.updateAutomatically(candidates)
   }
 
   func stop() {
@@ -168,7 +185,8 @@ extension AppEnvironment {
         updateAll: { checking.updateAll() },
         updating: updating,
         history: .shared,
-        setIgnored: { [coordinator] ignored, app in coordinator.appProvider.setIgnoredState(ignored, for: app) }))
+        setIgnored: { [coordinator] ignored, app in coordinator.appProvider.setIgnoredState(ignored, for: app) },
+        preferences: preferences))
     service.uninstall = .live(updating: updating, history: .shared)
     do {
       let server = try ControlServer(path: ControlPaths.socket) { request in

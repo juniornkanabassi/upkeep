@@ -36,6 +36,13 @@ enum UpdateOutcome: Codable, Equatable, Sendable {
   case failed(reason: String, logPath: String?)
   case handedOff
   case uninstalled
+  /// A per-app preference changed (`autoUpdate` or `ignore`); history only, never a row state.
+  case settingChanged(setting: String, on: Bool)
+
+  var isSettingChange: Bool {
+    if case .settingChanged = self { return true }
+    return false
+  }
 }
 
 extension App {

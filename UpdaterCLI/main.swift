@@ -79,10 +79,11 @@ let commands: [Command] = [
     summary: "Recorded update outcomes, newest first. Read-only.",
     example: "history --limit 10",
     params: [Param(name: "limit", kind: .integer, help: "1 to 500; default 20.", minimum: 1, maximum: 500)]),
-  Command(name: "set", summary: "Set the existing ignore preference for an app (all copies of its bundle id).",
-    example: "set com.example.App --ignore on", params: [
+  Command(name: "set", summary: "Change an app's settings. Ignore applies to all copies of its bundle id and turns automatic updates off. Auto (off by default) updates this copy after each check while it is closed, only for apps Upkeep installs itself. The window shows which caller changed it, with Undo.",
+    example: "set com.example.App --auto on", params: [
       Param(name: "target", kind: .string, help: "Bundle id or absolute app path.", required: true, positional: true),
-      Param(name: "ignore", kind: .string, help: "Ignore updates for this app.", required: true, values: ["on", "off"])
+      Param(name: "ignore", kind: .string, help: "Ignore updates for this app.", values: ["on", "off"]),
+      Param(name: "auto", kind: .string, help: "Update this app automatically when it is closed.", values: ["on", "off"])
     ]),
   Command(name: "uninstall_preview", summary: "Preview removal of one app and exact leftovers. Personal data is unselected unless with-data is true. Returns a caller-bound, single-use token valid for 10 minutes. Never deletes.", example: "uninstall /path/App.app --dry-run", params: [
     Param(name: "target", kind: .string, help: "Bundle id or absolute app path.", required: true),
@@ -187,6 +188,9 @@ func render(_ response: ControlResponse, command: String) {
     for item in (data["results"]?.arrayValue ?? []).compactMap(\.objectValue) {
       print("\(text(item["status"]) ?? ""): \(text(item["path"]) ?? "") \(text(item["message"]) ?? "")")
     }
+  case "set":
+    print("\(text(data["path"]) ?? text(data["bundleId"]) ?? "?"): ignore \(data["ignored"]?.boolValue == true ? "on" : "off")"
+      + (data["autoUpdate"].map { ", auto \($0.boolValue == true ? "on" : "off")" } ?? ""))
   case "history":
     let entries = (data["entries"]?.arrayValue ?? []).compactMap(\.objectValue)
     for entry in entries {

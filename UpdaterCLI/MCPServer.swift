@@ -7,7 +7,8 @@ final class MCPServer: @unchecked Sendable {
   private let lock = NSLock()
   private let pending = DispatchGroup()
   private var tasks: [String: Task<Void, Never>] = [:]
-  private let caller = "mcp-" + UUID().uuidString
+  /// `mcp-<client>-<uuid>`: the client name from initialize lets the window say "Claude" or "Codex".
+  private var caller = "mcp-" + UUID().uuidString
 
   static let instructions = "Updater manages installed Mac apps. Check, list, update, then use status with wait for jobs. A running app may need a person's quit confirmation; needsQuit is not a reason to retry automatically. Hand-offs open another app only when explicitly requested. Uninstall previews never delete; uninstall confirmation requires the user's approval of the exact plan. Cancelling a call stops waiting, not an update already accepted by the app."
 
@@ -16,9 +17,9 @@ final class MCPServer: @unchecked Sendable {
       let name = command.name == "set" ? "configure" : command.name
       var properties: [String: Any] = [:]
       for param in command.params {
-        let key = param.name == "with-data" ? "with_data" : param.name == "job" ? "jobId" : param.name == "updates" ? "updatesOnly" : param.name == "full" ? "fields" : param.name == "ignore" ? "ignored" : param.name
-        var schema: [String: Any] = ["type": param.kind == .integer ? "integer" : param.kind == .switchFlag || key == "ignored" ? "boolean" : "string", "description": param.help]
-        if let values = param.values, key != "ignored" { schema["enum"] = values }
+        let key = param.name == "with-data" ? "with_data" : param.name == "job" ? "jobId" : param.name == "updates" ? "updatesOnly" : param.name == "full" ? "fields" : param.name == "ignore" ? "ignored" : param.name == "auto" ? "autoUpdate" : param.name
+        var schema: [String: Any] = ["type": param.kind == .integer ? "integer" : param.kind == .switchFlag || key == "ignored" || key == "autoUpdate" ? "boolean" : "string", "description": param.help]
+        if let values = param.values, key != "ignored", key != "autoUpdate" { schema["enum"] = values }
         if key == "fields" { schema = ["type": "string", "enum": ["compact", "full"]] }
         if let minimum = param.minimum { schema["minimum"] = minimum }
         if let maximum = param.maximum { schema["maximum"] = maximum }
@@ -27,7 +28,7 @@ final class MCPServer: @unchecked Sendable {
       let readOnly = ["list", "status", "history", "uninstall_preview"].contains(name)
       var tool: [String: Any] = ["name": name, "description": command.summary,
         "inputSchema": ["type": "object", "properties": properties,
-          "required": command.params.filter(\.required).map { $0.name == "ignore" ? "ignored" : $0.name }, "additionalProperties": false],
+          "required": command.params.filter(\.required).map(\.name), "additionalProperties": false],
         "outputSchema": ["type": "object", "properties": ["ok": ["type": "boolean"], "data": ["type": "object"], "code": ["type": "string"], "message": ["type": "string"], "version": ["type": "integer"]], "required": ["ok", "version"]],
         "annotations": ["readOnlyHint": readOnly, "destructiveHint": name == "update" || name == "uninstall_confirm", "idempotentHint": name != "uninstall_confirm", "openWorldHint": ["update", "check"].contains(name)]]
       if name == "uninstall_confirm" { tool["_meta"] = ["anthropic/requiresUserInteraction": true] }
@@ -67,6 +68,10 @@ final class MCPServer: @unchecked Sendable {
     func result(_ value: [String: Any]) { send(["jsonrpc": "2.0", "id": id, "result": value]) }
     switch method {
     case "initialize":
+      if let client = (params["clientInfo"] as? [String: Any])?["name"] as? String {
+        let safe = client.lowercased().filter { $0.isLetter || $0.isNumber || $0 == "-" }.prefix(40)
+        lock.withLock { caller = "mcp-\(safe)-" + UUID().uuidString }
+      }
       let version = params["protocolVersion"] as? String
       result(["protocolVersion": version == "2025-06-18" ? "2025-06-18" : "2025-11-25", "capabilities": ["tools": [:]], "serverInfo": ["name": "updater", "version": "1"], "instructions": Self.instructions])
     case "ping": result([:])
@@ -82,13 +87,13 @@ final class MCPServer: @unchecked Sendable {
       }
       var args: [String: String] = [:]
       for (key, value) in arguments {
-        let wire = key == "with_data" ? "with-data" : key == "jobId" ? "job" : key == "updatesOnly" ? "updates" : key == "fields" ? "full" : key == "ignored" ? "ignore" : key
+        let wire = key == "with_data" ? "with-data" : key == "jobId" ? "job" : key == "updatesOnly" ? "updates" : key == "fields" ? "full" : key == "ignored" ? "ignore" : key == "autoUpdate" ? "auto" : key
         if key == "fields" { args[wire] = (value as? String == "full") ? "1" : "0" }
-        else if key == "ignored" { args[wire] = (value as? Bool == true) ? "on" : "off" }
+        else if key == "ignored" || key == "autoUpdate" { args[wire] = (value as? Bool == true) ? "on" : "off" }
         else { args[wire] = String(describing: value) }
       }
       let rpcID = (try! JSONSerialization.data(withJSONObject: [id], options: [.fragmentsAllowed]))
-      let control = ControlRequest(id: requestID, command: name == "configure" ? "set" : name, args: args, caller: caller)
+      let control = ControlRequest(id: requestID, command: name == "configure" ? "set" : name, args: args, caller: lock.withLock { caller })
       pending.enter()
       // Register under the lock before the task can complete or cancellation can arrive.
       lock.withLock {

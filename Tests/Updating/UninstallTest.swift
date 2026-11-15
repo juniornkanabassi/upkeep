@@ -300,4 +300,20 @@ final class UninstallTest: XCTestCase {
     XCTAssertEqual(moved, 0)
     XCTAssertTrue(FileManager.default.fileExists(atPath: app.path))
   }
+
+  /// The window's sheet can untick groups; the result says they stayed, and nothing else moves.
+  func testExcludedItemsStayAndCountAsDeliberate() async throws {
+    let (root, app, planner) = try fixture()
+    let cache = planner.home.appendingPathComponent("Library/Caches/com.example.clean")
+    try file(cache)
+    var moved = [String]()
+    let service = UninstallService(planner: planner, history: nil, logURL: root.appendingPathComponent("log"), trash: { moved.append($0.path) }, removeAdmin: { _, _ in XCTFail() }, bootout: { _, _ in })
+    let token = try XCTUnwrap(service.preview(app: app, withData: true, caller: "gui")["token"]?.stringValue)
+    let result = try await service.confirm(token: token, app: nil, withData: nil, caller: "gui", excluding: [app.path])
+    XCTAssertEqual(moved.count, 1)
+    XCTAssertTrue(moved[0].hasSuffix("Caches/com.example.clean"))
+    let kept = result["results"]?.arrayValue?.compactMap(\.objectValue).first { $0["path"]?.stringValue == app.path }
+    XCTAssertEqual(kept?["status"], "skipped")
+    XCTAssertTrue(FileManager.default.fileExists(atPath: app.path))
+  }
 }

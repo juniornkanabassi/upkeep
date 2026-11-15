@@ -398,6 +398,8 @@ extension UpdateHistoryEntry {
     case .needsPermission(let kind):
       what = kind == "administrator" ? "Needed your password" : "Blocked by App Management"
     case .uninstalled: what = "Uninstalled"
+    case .settingChanged(let setting, let on):
+      what = (setting == "ignore" ? "Ignore updates " : "Update automatically ") + (on ? "on" : "off")
     case .needsQuit: what = "Not updated: the app didn't quit"
     case .failed(let reason, _): what = "Failed: \(reason)"
     case .handedOff:

@@ -91,6 +91,23 @@ final class UpdateCheckingService: NSObject, ObservableObject, UpdateCheckProgre
       alwaysUsesManualAppStoreUpdates: appStoreUpdateService.alwaysUsesManualUpdates)
   }
 
+  /// Automatic updates never prompt or hand off: App Store installs run only while the update
+  /// helper is already ready. Returns what was started.
+  @discardableResult
+  func updateAutomatically(_ apps: [App], activity: AgentActivity = .shared) -> [App] {
+    let helperReady = (try? appStoreUpdateService.verifyAvailability()) != nil
+    let started = updateCandidates(from: apps).filter {
+      $0.bundle.source != .appStore || helperReady
+    }
+    ExternalHandOff.$allowed.withValue(false) {
+      for app in started {
+        activity.started(app.fileURL.path, by: "upkeep")
+        updating.update(app, isBulkUpdate: true)
+      }
+    }
+    return started
+  }
+
   func updateAll() {
     update(updateAllCandidates) { [weak self] in self?.updateAll() }
   }

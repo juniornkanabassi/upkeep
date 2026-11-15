@@ -22,6 +22,9 @@ final class ControlService {
     /// How long a command waits for readiness before answering not_ready.
     var readinessWait: Duration = .seconds(20)
     var setIgnored: (@MainActor (Bool, App) -> Void)? = nil
+    /// Ignore and Update automatically, with the caller recorded; preferred over `setIgnored`.
+    var preferences: AppPreferences? = nil
+    var activity = AgentActivity.shared
   }
 
   private let dependencies: Dependencies
@@ -46,7 +49,7 @@ final class ControlService {
       if let notReady = await ready(needsCheck: true) { return notReady }
       return update(args, caller: request.caller)
     case "status": return await statusWaiting(args)
-    case "set": return configure(args)
+    case "set": return configure(args, caller: request.caller)
     case "uninstall_preview", "uninstall_confirm":
       return await uninstallRequest(request)
     case "history": return history(limit: Int(args["limit"] ?? "") ?? 20)
@@ -87,7 +90,7 @@ final class ControlService {
     var data: [String: JSONValue] = [
       "apps": .array(apps.map { app in
         guard !full, let object = describe(app).objectValue else { return describe(app) }
-        let fields: Set<String> = ["name", "bundleId", "path", "installed", "available", "availability", "capability", "jobId", "handOffLabel", "ignored", "kind", "parent"]
+        let fields: Set<String> = ["name", "bundleId", "path", "installed", "available", "availability", "capability", "jobId", "handOffLabel", "ignored", "autoUpdate", "kind", "parent"]
         return .object(object.filter { fields.contains($0.key) })
       }), "count": JSONValue(apps.count),
     ]
@@ -148,6 +151,7 @@ final class ControlService {
     var results = [JSONValue]()
     for app in apps where app.updateAvailable && !app.isIgnored {
       if let id = dependencies.updating.jobID(for: app.identifier) {
+        dependencies.activity.attach(app.fileURL.path, caller: caller)
         results.append(
           .object(entry(app, "inProgress", ["jobId": .string(id), "state": state(of: app)])))
       }
@@ -161,6 +165,7 @@ final class ControlService {
         continue
       }
       remember(id, caller: caller)
+      dependencies.activity.started(app.fileURL.path, by: caller)
       results.append(
         .object(entry(app, "started", ["jobId": .string(id), "state": state(of: app)])))
     }
@@ -174,6 +179,8 @@ final class ControlService {
   private func start(_ app: App, allowHandOff: Bool, caller: String) -> [String: JSONValue] {
     let updating = dependencies.updating
     if let id = updating.jobID(for: app.identifier) {
+      // One job per app: this caller gets the running job's result.
+      dependencies.activity.attach(app.fileURL.path, caller: caller)
       return entry(app, "inProgress", ["jobId": .string(id), "state": state(of: app)])
     }
     guard app.isActionable else { return entry(app, "upToDate", [:]) }
@@ -193,6 +200,7 @@ final class ControlService {
       return notStarted(app)
     }
     remember(id, caller: caller)
+    dependencies.activity.started(app.fileURL.path, by: caller)
     return entry(app, "started", ["jobId": .string(id), "state": state(of: app)])
   }
 
@@ -238,16 +246,34 @@ final class ControlService {
     catch { return .failure("uninstall_failed", error.localizedDescription) }
   }
 
-  private func configure(_ args: [String: String]) -> ControlResponse {
-    guard let target = args["target"], let setting = args["ignore"], ["on", "off"].contains(setting) else {
-      return .failure("usage", "Use set <target> --ignore on|off.")
+  private func configure(_ args: [String: String], caller: String) -> ControlResponse {
+    let ignore = args["ignore"], auto = args["auto"]
+    guard let target = args["target"], ignore != nil || auto != nil,
+      [ignore, auto].allSatisfy({ $0 == nil || ["on", "off"].contains($0!) })
+    else {
+      return .failure("usage", "Use set <target> --ignore on|off and/or --auto on|off.")
     }
     let matches = dependencies.apps().filter { $0.bundleIdentifier == target || $0.fileURL.path == target }
     guard let app = matches.first else { return .failure("not_found", "No matching app.") }
     guard matches.count == 1 else { return .failure("ambiguous", "Name a copy by absolute path.") }
-    guard let setIgnored = dependencies.setIgnored else { return .failure("unsupported", "Ignore settings are unavailable.") }
-    setIgnored(setting == "on", app)
-    return ControlResponse(ok: true, data: ["bundleId": .string(app.bundleIdentifier), "ignored": .bool(setting == "on")])
+    guard let preferences = dependencies.preferences else {
+      guard auto == nil, let ignore, let setIgnored = dependencies.setIgnored else {
+        return .failure("unsupported", "App settings are unavailable.")
+      }
+      setIgnored(ignore == "on", app)
+      return ControlResponse(ok: true, data: ["bundleId": .string(app.bundleIdentifier), "ignored": .bool(ignore == "on")])
+    }
+    do {
+      // Ignore first: turning it on switches automatic updates off.
+      if let ignore { try preferences.set(.ignore, ignore == "on", for: app, caller: caller) }
+      let current = dependencies.apps().first { $0.identifier == app.identifier } ?? app
+      if let auto { try preferences.set(.autoUpdate, auto == "on", for: current, caller: caller) }
+    } catch { return .failure("unsupported", error.message) }
+    let current = dependencies.apps().first { $0.identifier == app.identifier } ?? app
+    return ControlResponse(ok: true, data: [
+      "bundleId": .string(app.bundleIdentifier), "path": .string(app.fileURL.path),
+      "ignored": .bool(current.isIgnored), "autoUpdate": .bool(preferences.autoUpdates(current)),
+    ])
   }
 
   private func statusWaiting(_ args: [String: String]) async -> ControlResponse {
@@ -370,6 +396,7 @@ final class ControlService {
         "capability": .string(app.capability.rawValue),
         "handOffLabel": JSONValue(app.capability == .handOff ? Self.label(app) : nil),
         "ignored": app.isIgnored ? .bool(true) : .null,
+        "autoUpdate": dependencies.preferences?.autoUpdates(app) == true ? .bool(true) : .null,
         // The route Updater chose; where it was found only when that differs.
         "source": .string(app.source.rawValue),
         "detectedBy": app.bundle.source == app.source ? .null : .string(app.bundle.source.rawValue),
@@ -454,6 +481,8 @@ final class ControlService {
     case .failed(let reason, let logPath):
       ["state": "failed", "message": .string(reason), "log": JSONValue(logPath)]
     case .uninstalled: ["state": "uninstalled"]
+    case .settingChanged(let setting, let on):
+      ["state": "settingChanged", "setting": .string(setting), "on": .bool(on)]
     case .handedOff: ["state": "handedOff", "label": JSONValue(label)]
     }
   }
