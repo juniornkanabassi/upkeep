@@ -363,7 +363,11 @@ extension Version {
     }
 
     // The entire version number equals the app versions build number. We assume version number by default, but that may not be the case.
-    if let versionNumber, versionNumber == appVersion.buildNumber {
+    // Not when the app's own version and build are the same string: then the remote matches
+    // the version too, and switching made "10.0 (10.0)" against "10.0" uncomparable.
+    if let versionNumber, versionNumber == appVersion.buildNumber,
+      appVersion.buildNumber != appVersion.versionNumber
+    {
       // Switch to build number.
       return Version(versionNumber: nil, buildNumber: versionNumber)
     }

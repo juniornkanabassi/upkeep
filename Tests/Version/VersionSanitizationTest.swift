@@ -24,6 +24,18 @@ class VersionSanitizationTest: XCTestCase {
     XCTAssertEqual(update.remoteVersion.versionNumber, "1.2.3.4")
   }
 
+  /// Lightroom "10.0 (10.0)" and Core Sync "7.10.0.1 (7.10.0.1)" showed "cannot be compared"
+  /// against the same remote version; they are current.
+  func testMatchingVersionStaysComparableWhenBuildEqualsVersion() {
+    let appVersion = Version(versionNumber: "10.0", buildNumber: "10.0")
+    for remote in [Version(versionNumber: "10.0", buildNumber: nil), appVersion] {
+      let sanitized = remote.sanitize(with: appVersion)
+      XCTAssertEqual(appVersion.comparisonForUpdate(to: sanitized), .samePrecedence)
+    }
+    let newer = Version(versionNumber: "10.1", buildNumber: nil).sanitize(with: appVersion)
+    XCTAssertEqual(appVersion.comparisonForUpdate(to: newer), .older)
+  }
+
   func testNoSanitization() {
     let appVersion = Version(versionNumber: "1.2", buildNumber: "40")
     let remoteVersion = Version(versionNumber: "3.2", buildNumber: "ABC")
