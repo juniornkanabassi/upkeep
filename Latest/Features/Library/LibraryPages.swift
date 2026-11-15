@@ -99,6 +99,10 @@ struct AllAppsTable: View {
     }
     if AppPreferences.canAutoUpdate(app) { return nil }
     if app.isSourcePending { return "Still checking how \(app.name) updates." }
+    if app.capability == .vendorTool {
+      return
+        "\(app.name) updates through its developer's own updater, which Upkeep only runs when you ask."
+    }
     if app.relaunchesToUpdate || app.externalUpdaterName == app.name {
       return "\(app.name) installs its own updates, so Upkeep can't update it automatically."
     }

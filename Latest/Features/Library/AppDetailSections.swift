@@ -365,14 +365,11 @@ struct ReleaseNotesSection: View {
 
 extension App {
   /// Where a driver's installed version was read.
+  /// Where a driver's installed version was read: the app discovery took it from, or the
+  /// driver bundle itself.
   var installedProvenance: String {
-    if bundle.vendor == "Blackmagic Design", bundle.parent != nil {
-      return "from the \(bundle.parent!) install record on this Mac"
-    }
-    if let host = bundle.hostURL {
-      return "from \(host.deletingPathExtension().lastPathComponent) on this Mac"
-    }
-    return "from the driver on this Mac"
+    guard let source = bundle.versionSource else { return "from the driver on this Mac" }
+    return "from \(source.deletingPathExtension().lastPathComponent) on this Mac"
   }
 
   /// Where a driver's available version came from, or nil when there is no source.

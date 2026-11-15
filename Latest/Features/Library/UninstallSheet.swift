@@ -127,6 +127,41 @@ final class UninstallSheetModel: ObservableObject {
     return Plan(items: plan.items, token: token)
   }
 
+  /// The result heading follows what happened to the app bundle itself: "is uninstalled"
+  /// only when it moved to the Bin.
+  static func heading(appName: String, appPath: String, outcomes: [Outcome])
+    -> (title: String, subtitle: String)
+  {
+    let failed = outcomes.filter { !$0.removed }
+    let moved = outcomes.filter(\.removed).count
+    switch outcomes.first(where: { $0.path == appPath })?.removed {
+    case true?:
+      return failed.isEmpty
+        ? (
+          "\(appName) is uninstalled",
+          "Everything you chose is in the Bin, and can be put back from there."
+        )
+        : (
+          "\(appName) is uninstalled, with \(LibraryContent.count(failed.count, "file")) left",
+          failed.first?.message ?? "Some files stayed where they were."
+        )
+    case false?:
+      let reason = outcomes.first { $0.path == appPath }?.message ?? "It stayed where it was."
+      return (
+        "\(appName) is still installed",
+        "\(appName) could not be moved to the Bin. \(reason)"
+          + (moved > 0 ? " \(LibraryContent.count(moved, "other item")) moved to the Bin." : "")
+      )
+    case nil:
+      return (
+        "Removed \(LibraryContent.count(moved, "item")). \(appName) is still installed.",
+        failed.isEmpty
+          ? "You kept the app. What moved can be put back from the Bin."
+          : (failed.first?.message ?? "Some files stayed where they were.")
+      )
+    }
+  }
+
   /// Why nothing moved: a cancelled password prompt, or the reason the service returned.
   static func note(for data: [String: JSONValue], outcomes: [Outcome], needsPassword: Bool)
     -> String
@@ -313,13 +348,9 @@ struct UninstallSheet: View {
     let failed = outcomes.filter { !$0.removed }
     let byPath = Dictionary(outcomes.map { ($0.path, $0) }, uniquingKeysWith: { first, _ in first })
     return VStack(alignment: .leading, spacing: 0) {
-      header(
-        title: failed.isEmpty
-          ? "\(model.app.name) is uninstalled"
-          : "\(model.app.name) is uninstalled, with \(LibraryContent.count(failed.count, "file")) left",
-        subtitle: failed.isEmpty
-          ? "Everything you chose is in the Bin, and can be put back from there."
-          : (failed.first?.message ?? "Some files stayed where they were."))
+      let heading = UninstallSheetModel.heading(
+        appName: model.app.name, appPath: model.app.fileURL.path, outcomes: outcomes)
+      header(title: heading.title, subtitle: heading.subtitle)
       ScrollView {
         VStack(spacing: 0) {
           ForEach(Array(model.groups.enumerated()), id: \.element.id) { index, group in

@@ -49,8 +49,9 @@ final class AppPreferences: ObservableObject {
     mirror.paths.withLock { [autoUpdatePaths] in $0 = autoUpdatePaths }
   }
 
-  /// Only apps Upkeep installs itself can update automatically.
-  static func canAutoUpdate(_ app: App) -> Bool { app.capability.isAutomatic }
+  /// Only apps Upkeep replaces itself can update automatically. Vendor tools (Microsoft
+  /// AutoUpdate) run their own installer and quit logic, so they are never run unattended.
+  static func canAutoUpdate(_ app: App) -> Bool { app.capability == .install }
 
   func autoUpdates(_ app: App) -> Bool {
     Self.canAutoUpdate(app) && !app.isIgnored && autoUpdatePaths.contains(app.fileURL.path)

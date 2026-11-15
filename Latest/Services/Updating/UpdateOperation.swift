@@ -174,6 +174,12 @@ class UpdateOperation: StatefulOperation, @unchecked Sendable {
   /// Installation and rollback must finish once they start. Serialize this
   /// boundary with cancellation so a completed install still triggers a refresh.
   func beginCommit() throws {
+    // An automatic job checks its policy once more at the last point where nothing has
+    // changed; every route passes here, including Sparkle's closed-app route.
+    if let policy = automaticPolicy, !policy.stillEligible() {
+      cancel()
+      throw CancellationError()
+    }
     try committing.withLock { committing in
       try Task.checkCancellation()
       guard !isCancelled else { throw CancellationError() }

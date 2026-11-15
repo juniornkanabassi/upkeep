@@ -65,7 +65,8 @@ enum DriverDiscovery {
         version: blackmagic ? (desktopVideo?.version ?? raw.version) : (host?.version ?? raw.version), name: raw.name, bundleIdentifier: raw.bundleIdentifier,
         fileURL: url, source: .driver, kind: .driver, parent: parent,
         vendor: raw.vendor, note: note, hostURL: host?.fileURL,
-        companionToolURL: isARK ? ark?.tool : nil, companionVersion: isARK ? ark?.version : nil)
+        companionToolURL: isARK ? ark?.tool : nil, companionVersion: isARK ? ark?.version : nil,
+        versionSource: blackmagic ? desktopVideo?.fileURL : host?.fileURL)
     }
   }
 

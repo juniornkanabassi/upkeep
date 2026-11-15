@@ -347,4 +347,23 @@ final class UninstallTest: XCTestCase {
         outcomes: [outcome], needsPassword: true),
       "Nothing was removed. The administrator step failed: disk full")
   }
+
+  /// Recheck 2: "is uninstalled" only when the app bundle itself moved.
+  func testResultHeadingFollowsTheAppBundle() {
+    typealias O = UninstallSheetModel.Outcome
+    let app = "/Applications/AlDente.app", cache = "/Users/x/Library/Caches/aldente"
+    func heading(_ outcomes: [O]) -> String {
+      UninstallSheetModel.heading(appName: "AlDente", appPath: app, outcomes: outcomes).title
+    }
+    XCTAssertEqual(heading([O(path: app, removed: true, message: nil)]), "AlDente is uninstalled")
+    XCTAssertEqual(
+      heading([O(path: app, removed: true, message: nil), O(path: cache, removed: false, message: "Locked.")]),
+      "AlDente is uninstalled, with 1 file left")
+    XCTAssertEqual(
+      heading([O(path: cache, removed: true, message: nil)]),
+      "Removed 1 item. AlDente is still installed.", "app unticked")
+    XCTAssertEqual(
+      heading([O(path: app, removed: false, message: "Locked."), O(path: cache, removed: true, message: nil)]),
+      "AlDente is still installed", "the app failed to move")
+  }
 }

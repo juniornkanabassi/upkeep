@@ -25,6 +25,9 @@ extension App {
     let hostURL: URL?
     let companionToolURL: URL?
     let companionVersion: String?
+    /// The bundle a driver's version was read from when it is not the driver itself (its host
+    /// app, or the Blackmagic Desktop Video app); nil means the bundle's own Info.plist.
+    let versionSource: URL?
 
     /// The version currently present on the users computer
     let version: Version
@@ -55,8 +58,10 @@ extension App {
       source: Source,
       modificationDate: Date? = nil,
       kind: Kind = .app, parent: String? = nil, vendor: String? = nil, note: String? = nil,
-      hostURL: URL? = nil, companionToolURL: URL? = nil, companionVersion: String? = nil
+      hostURL: URL? = nil, companionToolURL: URL? = nil, companionVersion: String? = nil,
+      versionSource: URL? = nil
     ) {
+      self.versionSource = versionSource
       self.kind = kind
       self.parent = parent
       self.vendor = vendor
@@ -85,6 +90,7 @@ extension App {
         && kind == other.kind && parent == other.parent && vendor == other.vendor
         && note == other.note && hostURL == other.hostURL
         && companionToolURL == other.companionToolURL && companionVersion == other.companionVersion
+        && versionSource == other.versionSource
     }
 
     private static func modificationDate(forBundleAt fileURL: URL) -> Date {

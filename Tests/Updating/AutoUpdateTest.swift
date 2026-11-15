@@ -180,7 +180,7 @@ final class AutoUpdateTest: XCTestCase {
 // MARK: - Automatic jobs re-check before acting (review 1)
 
 extension AutoUpdateTest {
-  private func probe(_ name: String) -> ProbeOperation {
+  fileprivate func probe(_ name: String) -> ProbeOperation {
     ProbeOperation(
       bundleIdentifier: "test.auto.\(name)",
       appIdentifier: FileManager.default.temporaryDirectory.appendingPathComponent(
@@ -275,6 +275,40 @@ extension AutoUpdateTest {
     XCTAssertFalse(policy.stillEligible(), "switched off after queueing")
     XCTAssertFalse(
       prefs.policy(for: chrome, isIgnored: { true }, isRunning: { _ in false }).stillEligible())
+  }
+}
+
+extension AutoUpdateTest {
+  /// Recheck 1: Microsoft AutoUpdate and other vendor tools never run unattended.
+  func testVendorToolAppsCannotUpdateAutomatically() {
+    let bundle = App.Bundle(
+      version: Version(versionNumber: "16.1", buildNumber: nil), name: "Word",
+      bundleIdentifier: "test.word", fileURL: URL(fileURLWithPath: "/tmp/Word.app"),
+      source: .vendor,
+      modificationDate: Date(timeIntervalSince1970: 0))
+    let update = App.Update(
+      app: bundle, remoteVersion: Version(versionNumber: "16.2", buildNumber: nil),
+      minimumOSVersion: nil, source: .vendor, date: nil, releaseNotes: nil,
+      updateAction: .vendorTool { _ in })
+    let word = App(bundle: bundle, update: .success(update), isIgnored: false)
+    XCTAssertEqual(word.capability, .vendorTool)
+    XCTAssertFalse(AppPreferences.canAutoUpdate(word))
+    XCTAssertThrowsError(try preferences().set(.autoUpdate, true, for: word, caller: "gui"))
+    XCTAssertNotNil(AllAppsTable.unavailableReason(.autoUpdate, app: word))
+  }
+
+  /// Recheck 1: the commit point re-checks the policy on every route (Sparkle skips showReady
+  /// for closed apps), so an automatic job that is no longer eligible changes nothing.
+  func testCommitPointDeclinesAnIneligibleAutomaticJob() {
+    let eligible = Mutex(true)
+    let operation = probe("Commit")
+    operation.automaticPolicy = AutomaticUpdatePolicy { eligible.withLock { $0 } }
+    XCTAssertNoThrow(try operation.beginCommit())
+    let late = probe("Late")
+    late.automaticPolicy = AutomaticUpdatePolicy { eligible.withLock { $0 } }
+    eligible.withLock { $0 = false }
+    XCTAssertThrowsError(try late.beginCommit())
+    XCTAssertTrue(late.isCancelled)
   }
 }
 

@@ -56,6 +56,7 @@ final class DriverCoverageTest: XCTestCase {
     XCTAssertEqual(camera.parent, "Camera")
     XCTAssertEqual(camera.version.versionNumber, "3.0")
     XCTAssertEqual(camera.hostURL, appURL)
+    XCTAssertEqual(camera.versionSource, appURL, "the version shown is the host app's")
     XCTAssertEqual(camera.note, "Updates with Camera")
     XCTAssertTrue(try XCTUnwrap(rows.first { $0.name == "Legacy" }?.note).contains("Legacy"))
   }
@@ -236,21 +237,33 @@ final class DriverCoverageTest: XCTestCase {
   /// Screen 09: driver details say where each version came from.
   @MainActor
   func testDriverVersionProvenance() {
-    func driver(_ vendor: String?, parent: String? = nil, host: URL? = nil, tool: URL? = nil) -> App {
+    func driver(
+      _ vendor: String?, parent: String? = nil, host: URL? = nil, tool: URL? = nil,
+      source: URL? = nil
+    ) -> App {
       let bundle = App.Bundle(
         version: Version(versionNumber: "16.4", buildNumber: nil), name: "Driver",
         bundleIdentifier: "test.driver", fileURL: URL(fileURLWithPath: "/Library/Extensions/D.kext"),
         source: .driver, modificationDate: Date(timeIntervalSince1970: 0), kind: .driver,
-        parent: parent, vendor: vendor, hostURL: host, companionToolURL: tool)
+        parent: parent, vendor: vendor, hostURL: host, companionToolURL: tool,
+        versionSource: source)
       return App(bundle: bundle, update: nil, isIgnored: false)
     }
-    let blackmagic = driver("Blackmagic Design", parent: "Blackmagic Desktop Video")
-    XCTAssertEqual(blackmagic.installedProvenance, "from the Blackmagic Desktop Video install record on this Mac")
+    // Discovery reads the Desktop Video app's version when it is there, else the driver's own.
+    let blackmagic = driver(
+      "Blackmagic Design", parent: "Blackmagic Desktop Video",
+      source: URL(fileURLWithPath: "/Applications/Blackmagic Desktop Video/Desktop Video Setup.app"))
+    XCTAssertEqual(blackmagic.installedProvenance, "from Desktop Video Setup on this Mac")
+    XCTAssertEqual(
+      driver("Blackmagic Design", parent: "Blackmagic Desktop Video").installedProvenance,
+      "from the driver on this Mac")
     XCTAssertEqual(blackmagic.availableProvenance, "from Blackmagic's online download list")
     let ark = driver("Rogue Amoeba", tool: URL(fileURLWithPath: "/Applications/SoundSource.app/Contents/Resources/arkinstaller"))
     XCTAssertEqual(ark.availableProvenance, "from the ARK installer inside SoundSource")
     XCTAssertEqual(ark.installedProvenance, "from the driver on this Mac")
-    let hosted = driver(nil, host: URL(fileURLWithPath: "/Applications/Camera Hub.app"))
+    let hosted = driver(
+      nil, host: URL(fileURLWithPath: "/Applications/Camera Hub.app"),
+      source: URL(fileURLWithPath: "/Applications/Camera Hub.app"))
     XCTAssertEqual(hosted.installedProvenance, "from Camera Hub on this Mac")
     XCTAssertNil(driver(nil).availableProvenance, "no update source, nothing claimed")
   }
