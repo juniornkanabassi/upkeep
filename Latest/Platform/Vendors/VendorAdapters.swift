@@ -18,13 +18,16 @@ struct VendorAdapters: Sendable {
   /// nil when no vendor tool manages this app. Throws when the vendor's own source could not
   /// be read, so the row shows a check failure instead of pretending the app is current.
   func update(for bundle: App.Bundle) async throws -> App.Update? {
-    if let microsoft, await microsoft.isInstalled {
+    // Only Microsoft's own apps can be registered with MAU; nothing else waits on it.
+    if let microsoft, bundle.bundleIdentifier.hasPrefix("com.microsoft."),
+      await microsoft.isInstalled
+    {
       let registration: MicrosoftAutoUpdate.Registration?
       do {
         registration = try await microsoft.registration(for: bundle.fileURL)
       } catch {
         // Unreadable MAU: a Microsoft app outside the App Store reports it; others go on.
-        if bundle.bundleIdentifier.hasPrefix("com.microsoft."), bundle.source != .appStore {
+        if bundle.source != .appStore {
           throw error
         }
         registration = nil
@@ -68,14 +71,26 @@ struct VendorAdapters: Sendable {
           UpdateQueue.shared.addOperation(ChromeRelaunchOperation(app: app))
         })
     }
-    if let adobe, adobe.manages(bundle) {
-      // Whether an update exists is only known to Creative Cloud: offer the check, claim none.
+    if let adobe, adobe.updatesItself(bundle) {
+      // Creative Cloud and Core Sync update themselves; Homebrew's auto-updating cask version
+      // runs ahead of or behind what Creative Cloud rolls out, so it is never an update here.
       return App.Update(
         app: bundle, remoteVersion: bundle.version, minimumOSVersion: nil, source: .vendor,
         date: nil, releaseNotes: nil,
         updateAction: .external(label: "Creative Cloud") { _ in
           Task { @MainActor in adobe.open(adobe.app) }
-        }, availabilityUnknown: true)
+        })
+    }
+    if let adobe, adobe.manages(bundle) {
+      // Creative Cloud's own record of offered versions decides; without one, offer the check
+      // and claim nothing.
+      let offered = adobe.offeredVersion(for: bundle)
+      return App.Update(
+        app: bundle, remoteVersion: offered ?? bundle.version, minimumOSVersion: nil,
+        source: .vendor, date: nil, releaseNotes: nil,
+        updateAction: .external(label: "Creative Cloud") { _ in
+          Task { @MainActor in adobe.open(adobe.app) }
+        }, availabilityUnknown: offered == nil)
     }
     return nil
   }

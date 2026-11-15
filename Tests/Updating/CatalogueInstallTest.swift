@@ -308,6 +308,25 @@ final class CatalogueInstallTest: XCTestCase {
 
   // MARK: Rules as pure functions
 
+  /// Zotero (bzip2) and Shottr (xz) ship compressed disk images whose first bytes look like a
+  /// compressed tar; the image trailer must win, or the update fails as "Unrecognized archive".
+  func testCompressedDiskImagesAreNotMistakenForTar() throws {
+    let root = try disposableDirectory()
+    for (name, format) in [("bzip2", "UDBZ"), ("lzma", "ULMO"), ("zlib", "UDZO")] {
+      let source = root.appendingPathComponent("src-\(name)")
+      try FileManager.default.createDirectory(at: source, withIntermediateDirectories: true)
+      try Data("x".utf8).write(to: source.appendingPathComponent("file"))
+      let image = root.appendingPathComponent("\(name).dmg")
+      try FixtureApp.run(
+        "/usr/bin/hdiutil",
+        ["create", "-quiet", "-srcfolder", source.path, "-format", format, image.path])
+      XCTAssertEqual(CatalogueInstall.payloadKind(of: image), .diskImage, format)
+    }
+    let tar = root.appendingPathComponent("a.tar.bz2")
+    try FixtureApp.run("/usr/bin/tar", ["-cjf", tar.path, "-C", root.path, "src-bzip2"])
+    XCTAssertEqual(CatalogueInstall.payloadKind(of: tar), .tar)
+  }
+
   func testShapeRulesFollowTheRoundTwoAllowList() throws {
     let hash = String(repeating: "a", count: 64)
     func parse(_ data: Data, platform: String = "arm64_tahoe") throws -> AppDownloadRelease {

@@ -125,6 +125,9 @@ final class VendorAdaptersTest: XCTestCase {
     XCTAssertNil(MicrosoftAutoUpdate.parseRegistered(nil))
   }
 
+  /// MAU only manages Microsoft's own apps, so its fixtures carry a Microsoft bundle ID.
+  private let microsoftFixtureID = "com.microsoft.updater-fixture"
+
   private struct MicrosoftSetup {
     let root: URL
     let app: URL
@@ -135,12 +138,12 @@ final class VendorAdaptersTest: XCTestCase {
 
   private func microsoftSetup(payloadVersion: String = "1.1") throws -> MicrosoftSetup {
     let root = try disposableDirectory()
-    let app = try FixtureApp.make(in: root.appendingPathComponent("Apps"), version: "1.0")
+    let app = try FixtureApp.make(in: root.appendingPathComponent("Apps"), identifier: microsoftFixtureID, version: "1.0")
     let tool = try FakeVendorTool(in: root, named: "msupdate")
     try tool.register([app: "FIXTURE01"], updates: ["FIXTURE01": "1.1"])
     try tool.stage(
       payload: try FixtureApp.make(
-        in: root.appendingPathComponent("payload"), version: payloadVersion),
+        in: root.appendingPathComponent("payload"), identifier: microsoftFixtureID, version: payloadVersion),
       target: app)
     return MicrosoftSetup(
       root: root, app: app, tool: tool,
@@ -192,7 +195,7 @@ final class VendorAdaptersTest: XCTestCase {
     XCTAssertTrue(app.updateAvailable)
     XCTAssertTrue(app.capability.isAutomatic, "included in Update All")
     // An App Store copy is not registered with MAU: no vendor route.
-    let other = try FixtureApp.make(in: setup.root.appendingPathComponent("MAS"), version: "1.0")
+    let other = try FixtureApp.make(in: setup.root.appendingPathComponent("MAS"), identifier: microsoftFixtureID, version: "1.0")
     let unregistered = try await vendors.update(
       for: try XCTUnwrap(BundleCollector.collectBundle(at: other)))
     XCTAssertNil(unregistered)
@@ -344,7 +347,7 @@ final class VendorAdaptersTest: XCTestCase {
   /// path for `msupdate --install --apps`, so it hands off and no install runs.
   func testAmbiguousMicrosoftRegistrationHandsOffWithoutInstalling() async throws {
     let setup = try microsoftSetup()
-    let second = try FixtureApp.make(in: setup.root.appendingPathComponent("Copy"), version: "1.0")
+    let second = try FixtureApp.make(in: setup.root.appendingPathComponent("Copy"), identifier: microsoftFixtureID, version: "1.0")
     try setup.tool.register(
       [setup.app: "FIXTURE01", second: "FIXTURE01"], updates: ["FIXTURE01": "1.1"])
     let bundle = try XCTUnwrap(BundleCollector.collectBundle(at: setup.app))
@@ -382,7 +385,7 @@ final class VendorAdaptersTest: XCTestCase {
       ).capability, .handOff)
     let scoped = await VendorAdapters.microsoftScope(
       unique.microsoft, appID: "FIXTURE01", app: unique.app,
-      bundleIdentifier: FixtureApp.identifier, copies: { _ in [other] })
+      bundleIdentifier: microsoftFixtureID, copies: { _ in [other] })
     XCTAssertFalse(scoped, "rechecked right before the install")
   }
 
@@ -391,7 +394,7 @@ final class VendorAdaptersTest: XCTestCase {
   /// hand-off, no MAU install, the clone discarded and the app reopened.
   func testScopeIsRecheckedAfterQuitBeforeMsupdate() async throws {
     let setup = try microsoftSetup()
-    let second = try FixtureApp.make(in: setup.root.appendingPathComponent("Copy"), version: "1.0")
+    let second = try FixtureApp.make(in: setup.root.appendingPathComponent("Copy"), identifier: microsoftFixtureID, version: "1.0")
     let bundle = try XCTUnwrap(BundleCollector.collectBundle(at: setup.app))
     let microsoft = setup.microsoft
     let tool = setup.tool
@@ -544,7 +547,7 @@ final class VendorAdaptersTest: XCTestCase {
   func testTwoMsupdateJobsNeverOverlap() async throws {
     let setup = try microsoftSetup()
     let second = try FixtureApp.make(
-      in: setup.root.appendingPathComponent("Second"), version: "1.0")
+      in: setup.root.appendingPathComponent("Second"), identifier: microsoftFixtureID, version: "1.0")
     try setup.tool.register([setup.app: "FIXTURE01", second: "FIXTURE02"], updates: [:])
     try setup.tool.flag("delay", "0.3")
     let queue = UpdateQueue()
@@ -756,6 +759,107 @@ final class VendorAdaptersTest: XCTestCase {
       try await Task.sleep(for: .milliseconds(10))
     }
     XCTAssertEqual(opened.withLock { $0 }, [ccApp], "the button opens Creative Cloud")
+  }
+
+  /// Only Microsoft's own apps wait on MAU; every other app skips it entirely.
+  func testNonMicrosoftAppsNeverQueryMicrosoftAutoUpdate() async throws {
+    let setup = try microsoftSetup()
+    let other = try FixtureApp.make(
+      in: setup.root.appendingPathComponent("Other"), name: "Other", version: "1.0")
+    let bundle = try XCTUnwrap(BundleCollector.collectBundle(at: other))
+    let update = try await VendorAdapters(microsoft: setup.microsoft, copies: { _ in [] })
+      .update(for: bundle)
+    XCTAssertNil(update)
+    XCTAssertTrue(setup.tool.calls().isEmpty, "msupdate was never run")
+  }
+
+  /// Creative Cloud's own record of offered versions decides: an app at the newest offered
+  /// version is current (no "Needs You" after updating in Creative Cloud), an older one has
+  /// exactly that update, and a yearly app ignores next year's release.
+  func testAdobeAvailabilityFollowsCreativeCloudsOfferedVersions() async throws {
+    let root = try disposableDirectory()
+    let ccApp = root.appendingPathComponent("Adobe Creative Cloud/Adobe Creative Cloud.app")
+    try FileManager.default.createDirectory(at: ccApp, withIntermediateDirectories: true)
+    let database = root.appendingPathComponent("pim.db")
+    try FixtureApp.run(
+      "/usr/bin/sqlite3",
+      [
+        database.path,
+        "CREATE TABLE package_installation_info (packageid); INSERT INTO package_installation_info VALUES ('1');",
+      ])
+    let prefs = root.appendingPathComponent("com.adobe.accc.apps.USER.prefs")
+    try """
+      <prefs><property key="Apps_Panel_Pref">&lt;products&gt;\
+      &lt;product sapVersion="PHSP_27.9" seenUpdate="true" updateActedOn="false"/&gt;\
+      &lt;product sapVersion="PHSP_28.0" seenUpdate="true" updateActedOn="false"/&gt;\
+      &lt;product sapVersion="PHSPBETA_28.5" seenUpdate="true" updateActedOn="false"/&gt;\
+      &lt;product sapVersion="PPRO_27.0" seenUpdate="true" updateActedOn="false"/&gt;\
+      &lt;product sapVersion="PPRO_27.0.1" seenUpdate="true" updateActedOn="false"/&gt;\
+      &lt;product sapVersion="LRCC_10.1" seenUpdate="true" updateActedOn="false"/&gt;\
+      &lt;/products&gt;</property></prefs>
+      """.write(to: prefs, atomically: true, encoding: .utf8)
+    XCTAssertEqual(
+      AdobeCreativeCloud.newestAppsPanelPrefs(in: root)?.lastPathComponent,
+      prefs.lastPathComponent, "the user's prefs are found")
+    var adobe = AdobeCreativeCloud(database: database, app: ccApp, appsPanelPrefs: prefs)
+    adobe.open = { _ in }
+
+    func check(_ folder: String, _ name: String, _ identifier: String, _ version: String)
+      async throws -> App
+    {
+      let url = try FixtureApp.make(
+        in: root.appendingPathComponent(folder), name: name, identifier: identifier,
+        version: version)
+      let bundle = try XCTUnwrap(BundleCollector.collectBundle(at: url))
+      let update = try await VendorAdapters(adobe: adobe).update(for: bundle)
+      return App(bundle: bundle, update: update.map { .success($0) }, isIgnored: false)
+    }
+
+    let photoshop = try await check(
+      "Adobe Photoshop 2027", "Adobe Photoshop 2027", "com.adobe.Photoshop", "28.0.0")
+    XCTAssertFalse(photoshop.availabilityUnknown)
+    XCTAssertFalse(photoshop.updateAvailable, "28.0 installed, 28.0 offered: current")
+    XCTAssertFalse(photoshop.isActionable, "not in Needs You")
+
+    let oldPhotoshop = try await check(
+      "Adobe Photoshop 2026", "Adobe Photoshop 2026", "com.adobe.Photoshop", "27.8.0")
+    XCTAssertTrue(oldPhotoshop.updateAvailable, "27.9 is offered for the 2026 app")
+    XCTAssertEqual(oldPhotoshop.remoteVersion?.versionNumber, "27.9")
+
+    let premiere = try await check(
+      "Adobe Premiere Pro 2027", "Adobe Premiere Pro 2027", "com.adobe.PremierePro.27", "27.0.0")
+    XCTAssertTrue(premiere.updateAvailable)
+    XCTAssertEqual(premiere.remoteVersion?.versionNumber, "27.0.1")
+    XCTAssertEqual(premiere.capability, .handOff, "Creative Cloud still installs it")
+
+    let lightroom = try await check(
+      "Adobe Lightroom CC", "Adobe Lightroom", "com.adobe.lightroomCC", "10.0")
+    XCTAssertTrue(lightroom.updateAvailable, "non-yearly apps take any newer offer")
+
+    let audition = try await check(
+      "Adobe Audition 2027", "Adobe Audition 2027", "com.adobe.Audition", "27.0.0")
+    XCTAssertTrue(audition.availabilityUnknown, "no record for this app: claim nothing")
+
+    let beta = try await check(
+      "Adobe Photoshop (Beta)", "Adobe Photoshop (Beta)", "com.adobe.Photoshop", "28.0.0")
+    XCTAssertEqual(beta.remoteVersion?.versionNumber, "28.5", "betas read PHSPBETA")
+
+    // A stale record proves nothing about "current", but still proves a newer offer.
+    try FileManager.default.setAttributes(
+      [.modificationDate: Date().addingTimeInterval(-AdobeCreativeCloud.freshness - 60)],
+      ofItemAtPath: prefs.path)
+    let stale = try await check(
+      "Adobe Photoshop 2027 again", "Adobe Photoshop 2027", "com.adobe.Photoshop", "28.0.0")
+    XCTAssertTrue(stale.availabilityUnknown, "old record: check in Creative Cloud")
+    let staleOld = try await check(
+      "Adobe Premiere Pro 2027 again", "Adobe Premiere Pro 2027", "com.adobe.PremierePro.27",
+      "27.0.0")
+    XCTAssertTrue(staleOld.updateAvailable)
+
+    let core = try await check(
+      "Adobe Creative Cloud/ACC", "Creative Cloud", "com.adobe.acc.AdobeCreativeCloud", "6.11")
+    XCTAssertFalse(core.updateAvailable, "Creative Cloud updates itself")
+    XCTAssertFalse(core.availabilityUnknown)
   }
 
   // MARK: - System

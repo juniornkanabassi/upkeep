@@ -82,8 +82,10 @@ final class UpdateReceiptModel: ObservableObject {
     observation = NotificationCenter.default.publisher(
       for: UpdateHistoryStore.didRecordNotification, object: history
     )
-    .compactMap { $0.userInfo?[UpdateHistoryStore.entryKey] as? UpdateHistoryEntry }
+    // Hop to main first: history posts from the update's background thread, and this closure
+    // is main-actor isolated, so running it there crashed Updater after every such update.
     .receive(on: DispatchQueue.main)
+    .compactMap { $0.userInfo?[UpdateHistoryStore.entryKey] as? UpdateHistoryEntry }
     .sink { [weak self] entry in
       guard case .updated = entry.outcome, let self else { return }
       self.count += 1

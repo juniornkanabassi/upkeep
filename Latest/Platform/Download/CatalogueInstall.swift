@@ -185,15 +185,19 @@ enum CatalogueInstall {
     func starts(_ bytes: [UInt8], at offset: Int = 0) -> Bool {
       head.count >= offset + bytes.count && Array(head[offset..<offset + bytes.count]) == bytes
     }
+    // The disk image trailer comes first: bzip2 (UDBZ) and xz (ULMO) images start with the
+    // same bytes as a compressed tar (Zotero and Shottr failed as "tar" before this).
+    if let end = try? handle.seekToEnd(), end >= 512 {
+      try? handle.seek(toOffset: end - 512)
+      if (try? handle.read(upToCount: 4)) == Data("koly".utf8) { return .diskImage }
+    }
     if starts([0x50, 0x4B, 0x03, 0x04]) { return .zip }
     if starts([0x1F, 0x8B]) || starts(Array("BZh".utf8))
       || starts([0xFD, 0x37, 0x7A, 0x58, 0x5A, 0x00]) || starts(Array("ustar".utf8), at: 257)
     {
       return .tar
     }
-    guard let end = try? handle.seekToEnd(), end >= 512 else { return nil }
-    try? handle.seek(toOffset: end - 512)
-    return (try? handle.read(upToCount: 4)) == Data("koly".utf8) ? .diskImage : nil
+    return nil
   }
 
   /// Every outer `.app` in an unpacked payload: wrapper folders are walked, symlinks are not

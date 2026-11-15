@@ -44,9 +44,23 @@ struct UpdateHistoryEntry: Codable, Equatable, Sendable {
 
 /// Append-only JSON lines in Application Support, so outcomes survive list reloads and relaunches.
 final class UpdateHistoryStore: Sendable {
-  static let shared = UpdateHistoryStore(
-    fileURL: FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-      .appendingPathComponent("Updater/history.jsonl"))
+  /// Same root as the transaction journal: UPDATER_HOME, a temporary folder under tests, so
+  /// test runs never write Junior's real history (they did on 6 Nov 2026).
+  static let shared: UpdateHistoryStore = {
+    let environment = ProcessInfo.processInfo.environment
+    let root: URL
+    if let home = environment["UPDATER_HOME"], !home.isEmpty {
+      root = URL(fileURLWithPath: home)
+    } else if environment["XCTestConfigurationFilePath"] != nil
+      || NSClassFromString("XCTestCase") != nil
+    {
+      root = FileManager.default.temporaryDirectory.appendingPathComponent("UpdaterTestJournal")
+    } else {
+      root = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        .appendingPathComponent("Updater")
+    }
+    return UpdateHistoryStore(fileURL: root.appendingPathComponent("history.jsonl"))
+  }()
 
   /// Posted after the record and cache are committed and the history lock is released.
   static let didRecordNotification = Notification.Name("Updater.UpdateHistoryStore.didRecord")

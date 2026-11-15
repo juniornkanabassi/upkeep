@@ -84,6 +84,19 @@ for name in set(manifest.read_text().splitlines()):
                        env=dict(os.environ, CFFIXED_USER_HOME=str(home)))
         (home / "Library/Preferences" / (name + ".plist")).unlink(missing_ok=True)
 manifest.unlink()
+# App-hosted tests share the app's bundle ID, so their window autosave frames
+# ("... latest-test-<UUID> ...") land in the real Updater domain; remove only those keys.
+import plistlib
+for home in (test_home, Path.home()):
+    env = dict(os.environ, CFFIXED_USER_HOME=str(home))
+    exported = subprocess.run(["/usr/bin/defaults", "export", "com.juniornkanabassi.Updater", "-"],
+                              capture_output=True, env=env).stdout
+    if not exported:
+        continue
+    for key in plistlib.loads(exported):
+        if "latest-test-" in key:
+            subprocess.run(["/usr/bin/defaults", "delete", "com.juniornkanabassi.Updater", key],
+                           capture_output=True, env=env)
 PY_CLEANUP
   /bin/rm -rf "$TEST_HOME"
   exit "$result"

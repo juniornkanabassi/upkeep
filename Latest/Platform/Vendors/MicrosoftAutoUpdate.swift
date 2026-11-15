@@ -12,11 +12,6 @@ actor MicrosoftAutoUpdate {
         "/Library/Application Support/Microsoft/MAU2.0/Microsoft AutoUpdate.app/Contents/MacOS/msupdate"
     ))
 
-  struct Scan: Sendable {
-    let registered: [String: String]
-    let updates: [String: String]
-  }
-
   struct Unreadable: LocalizedError {
     var errorDescription: String? { "Microsoft AutoUpdate could not be read." }
   }
@@ -24,15 +19,24 @@ actor MicrosoftAutoUpdate {
   let tool: URL
   private let logDirectory: URL
   private let queryTimeout: Duration
-  private var scan: (date: Date, value: Scan)?
+  /// `--config` (registrations, fast) and `--list` (updates, 10 to 20 s) are cached apart, so
+  /// finding which apps MAU manages never waits on its slow update query.
+  private let registeredCache = Cached()
+  private let updatesCache = Cached()
+
   /// One query at a time is shared by every caller. Invalidating bumps the generation, so a
   /// lookup that started earlier can never refill the cache.
-  private var inFlight: (generation: Int, task: Task<Scan, Error>)?
-  private var generation = 0
+  /// Only touched inside this actor.
+  final class Cached {
+    var value: (date: Date, value: [String: String])?
+    var inFlight: (generation: Int, task: Task<[String: String], Error>)?
+    var generation = 0
+  }
 
   init(
     tool: URL, logDirectory: URL = ToolProcess.defaultLogDirectory,
-    queryTimeout: Duration = .seconds(30)
+    // `--list` took 10 to 21 s on Junior's Mac (Nov 2026); 30 s made Office checks fail.
+    queryTimeout: Duration = .seconds(90)
   ) {
     self.tool = tool
     self.logDirectory = logDirectory
@@ -58,7 +62,9 @@ actor MicrosoftAutoUpdate {
   /// cannot be read, which is not the same as "no update".
   func registration(for app: URL, fresh: Bool = false) async throws -> Registration? {
     guard isInstalled else { return nil }
-    let registered = try await detect(fresh: fresh).registered
+    let registered = try await cached(registeredCache, fresh: fresh) {
+      [tool, queryTimeout] in try await Self.registrations(tool, timeout: queryTimeout)
+    }
     guard let identifier = registered[Homebrew.canonical(app)] else { return nil }
     return registered.values.filter { $0 == identifier }.count == 1
       ? .unique(identifier) : .ambiguous(identifier)
@@ -74,38 +80,55 @@ actor MicrosoftAutoUpdate {
 
   /// The version MAU would install for this app ID, or nil when it has none.
   func availableVersion(of appID: String) async throws -> String? {
-    try await detect(fresh: false).updates[appID]
+    try await cached(updatesCache, fresh: false) {
+      [tool, queryTimeout] in try await Self.updates(tool, timeout: queryTimeout)
+    }[appID]
   }
 
   func invalidate() {
-    generation += 1
-    scan = nil
-    inFlight = nil
+    for cache in [registeredCache, updatesCache] {
+      cache.generation += 1
+      cache.value = nil
+      cache.inFlight = nil
+    }
   }
 
-  private func detect(fresh: Bool) async throws -> Scan {
-    if !fresh, let scan, Date().timeIntervalSince(scan.date) < 60 { return scan.value }
-    if let inFlight, inFlight.generation == generation { return try await inFlight.task.value }
-    let started = generation
-    let task = Task { [tool, queryTimeout] in try await Self.query(tool, timeout: queryTimeout) }
-    inFlight = (started, task)
-    defer { if inFlight?.generation == started { inFlight = nil } }
+  private func cached(
+    _ cache: Cached, fresh: Bool,
+    query: @escaping @Sendable () async throws -> [String: String]
+  ) async throws -> [String: String] {
+    if !fresh, let value = cache.value, Date().timeIntervalSince(value.date) < 60 {
+      return value.value
+    }
+    if let inFlight = cache.inFlight, inFlight.generation == cache.generation {
+      return try await inFlight.task.value
+    }
+    let started = cache.generation
+    let task = Task { try await query() }
+    cache.inFlight = (started, task)
+    defer { if cache.inFlight?.generation == started { cache.inFlight = nil } }
     // Failures are not cached; the next check asks MAU again.
     let value = try await task.value
-    if generation == started { scan = (Date(), value) }
+    if cache.generation == started { cache.value = (Date(), value) }
     return value
   }
 
   /// Read-only queries have a deadline; installs never do.
-  private static func query(_ tool: URL, timeout: Duration) async throws -> Scan {
+  private static func registrations(_ tool: URL, timeout: Duration) async throws -> [String: String]
+  {
     let config = try await InstallerCommand.run(
       tool.path, ["--config", "--format", "plist"], timeout: timeout)
+    guard let registered = parseRegistered(plistValue(in: Data(config.utf8))) else {
+      throw Unreadable()
+    }
+    return registered
+  }
+
+  private static func updates(_ tool: URL, timeout: Duration) async throws -> [String: String] {
     let list = try await InstallerCommand.run(
       tool.path, ["--list", "--format", "plist"], timeout: timeout)
-    guard let registered = parseRegistered(plistValue(in: Data(config.utf8))),
-      let updates = parseList(list)
-    else { throw Unreadable() }
-    return Scan(registered: registered, updates: updates)
+    guard let updates = parseList(list) else { throw Unreadable() }
+    return updates
   }
 
   /// `RegisteredApplications`: app path → { "Application ID": ... }; nil if absent.

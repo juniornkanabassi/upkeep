@@ -58,6 +58,10 @@ final class AppDependencyBoundaryTest: XCTestCase {
     history.record(success)
     for _ in 0..<100 where receipt.count != 1 { try await Task.sleep(for: .milliseconds(5)) }
     XCTAssertEqual(receipt.count, 1, "Dismissal starts a new completion count")
+    // Real updates record from their operation's background thread; this crashed 0.10.0.
+    await Task.detached { history.record(success) }.value
+    for _ in 0..<100 where receipt.count != 2 { try await Task.sleep(for: .milliseconds(5)) }
+    XCTAssertEqual(receipt.count, 2, "A background record reaches the receipt without a crash")
   }
 
   func testMultipleSelectionUpdatesAutomaticAppsAndSurvivesFiltering() throws {
