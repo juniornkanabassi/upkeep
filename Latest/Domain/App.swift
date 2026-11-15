@@ -196,6 +196,10 @@ extension App {
   }
 }
 
+extension App: Identifiable {
+  var id: Bundle.Identifier { identifier }
+}
+
 extension App: Hashable {
 
   static func == (lhs: App, rhs: App) -> Bool {

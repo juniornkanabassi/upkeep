@@ -7,6 +7,11 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A45E2D904C41E99C38BC0D9A = {isa = PBXBuildFile; fileRef = 6BA995B1C78BDCCD4E7DB6C6; };
+		78EBDE34C3521EB985F8983B = {isa = PBXBuildFile; fileRef = BFC31B3555366FF95E05463E; };
+		C41E6C9C0D1219D1491C0559 = {isa = PBXBuildFile; fileRef = BE423DA92AB72C200704E417; };
+		36ACEBD94CF0ECC13F074AA4 = {isa = PBXBuildFile; fileRef = EA277A0602569DC5AA0E514F; };
+		D7E4BFFA3602BB9CD9B03532 = {isa = PBXBuildFile; fileRef = 5BF98D5B8BBD99C476C135CB; };
 		4105AA75F6C8136CB150FF85 = {isa = PBXBuildFile; fileRef = B4049EF4582F1904DF5F964C; };
 		94C3EE15377F7353FE59E197 = {isa = PBXBuildFile; fileRef = 66E5F5C31829D0C12938E0A7; };
 		54EA574373F0E5100118A0F7 = {isa = PBXBuildFile; fileRef = A28DD61E998D3F6C2F88CB9B; };
@@ -312,6 +317,11 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		6BA995B1C78BDCCD4E7DB6C6 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../Features/Library/UninstallSheet.swift; sourceTree = "<group>"; };
+		BFC31B3555366FF95E05463E = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../Features/Library/AppDetailSections.swift; sourceTree = "<group>"; };
+		BE423DA92AB72C200704E417 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../Features/Library/LibraryPages.swift; sourceTree = "<group>"; };
+		EA277A0602569DC5AA0E514F = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../Features/Library/LibrarySidebar.swift; sourceTree = "<group>"; };
+		5BF98D5B8BBD99C476C135CB = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../Features/Library/LibraryContent.swift; sourceTree = "<group>"; };
 		B4049EF4582F1904DF5F964C = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../../Tests/Updating/AutoUpdateTest.swift; sourceTree = "<group>"; };
 		66E5F5C31829D0C12938E0A7 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../Services/Updating/AppPreferences.swift; sourceTree = "<group>"; };
 		A28DD61E998D3F6C2F88CB9B = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../Services/Updating/AgentActivity.swift; sourceTree = "<group>"; };
@@ -1281,6 +1291,11 @@
 				75954CC973DE4753A247D989 /* ControlService.swift */,
 				A8B000000000000000000002,
 				A8B000000000000000000001,
+				6BA995B1C78BDCCD4E7DB6C6,
+				BFC31B3555366FF95E05463E,
+				BE423DA92AB72C200704E417,
+				EA277A0602569DC5AA0E514F,
+				5BF98D5B8BBD99C476C135CB,
 				B4049EF4582F1904DF5F964C,
 				66E5F5C31829D0C12938E0A7,
 				A28DD61E998D3F6C2F88CB9B,
@@ -1523,6 +1538,11 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A45E2D904C41E99C38BC0D9A,
+				78EBDE34C3521EB985F8983B,
+				C41E6C9C0D1219D1491C0559,
+				36ACEBD94CF0ECC13F074AA4,
+				D7E4BFFA3602BB9CD9B03532,
 				94C3EE15377F7353FE59E197,
 				33FF1CE7770F00AA9E88BD75,
 				A520CEDCFB9F49B0A2113BC5 /* TransactionJournal.swift in Sources */,

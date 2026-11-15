@@ -50,8 +50,43 @@ final class UpdatesListViewModel: ObservableObject {
   }
   var selectedAppIDs: Set<App.Bundle.Identifier> { selection.identifiers }
 
+  /// Only rows the current page shows (after search) can be selected or acted on.
   func apps(for identifiers: Set<App.Bundle.Identifier>) -> [App] {
-    snapshot.sections.flatMap(\.apps).filter { identifiers.contains($0.identifier) }
+    visibleApps.filter { identifiers.contains($0.identifier) }
+  }
+
+  private var visibleApps: [App] {
+    func flatten(_ rows: [LibraryContent.Row]) -> [App] {
+      rows.flatMap { [$0.app].compactMap { $0 } + flatten($0.children ?? []) }
+    }
+    return page == .allApps ? flatten(content.allAppRows) : pageSections.flatMap(\.apps)
+  }
+
+  /// The sidebar destination. Updates and Needs You use the native list below; the other
+  /// pages render their own views from the same snapshot.
+  @Published var page = LibraryPage.updates {
+    didSet {
+      guard page != oldValue else { return }
+      userChoseSelection = false
+      maintainSelectionAfterSnapshotChange()
+    }
+  }
+
+  /// The app whose uninstall sheet is open.
+  @Published var uninstallTarget: App?
+
+  var content: LibraryContent {
+    LibraryContent(apps: snapshot.apps, query: normalizedSearchQuery, isUpdating: updating.isUpdating)
+  }
+
+  /// Sections of the list page that is showing (Updates, Needs You or Drivers).
+  var pageSections: [AppListSnapshot.SectionContent] {
+    switch page {
+    case .updates: content.updateSections
+    case .needsYou: content.needsYouSections
+    case .drivers: content.driverSections
+    case .allApps, .history: []
+    }
   }
 
   func select(_ identifiers: Set<App.Bundle.Identifier>, isKeyboardSelection: Bool = false) {
@@ -167,6 +202,13 @@ final class UpdatesListViewModel: ObservableObject {
           self.updateDockBadge()
         }
       },
+      // Running jobs move between Updating now and the waiting group.
+      Task { [weak self] in
+        for await _ in NotificationCenter.default.notifications(named: .latestUpdateQueueDidChange) {
+          guard !Task.isCancelled, let self else { break }
+          self.objectWillChange.send()
+        }
+      },
     ]
     manualPreference = ManualAppStorePreferenceObserver { [weak self] in self?.refreshSnapshot() }
   }
@@ -202,6 +244,7 @@ final class UpdatesListViewModel: ObservableObject {
   }
 
   func update(_ app: App) {
+    if !updating.isUpdating(app) { AgentActivity.shared.started(app.fileURL.path, by: "gui") }
     updating.update(app)
   }
 
@@ -253,8 +296,20 @@ final class UpdatesListViewModel: ObservableObject {
         return
       }
     }
-    let firstActionable = snapshot.sections.lazy.flatMap(\.apps).first(where: \.isActionable)
-    if let selectedApp, snapshot.firstIndex(of: selectedApp) != nil {
+    let listed = pageSections.flatMap(\.apps)
+    let firstActionable =
+      page == .updates || page == .needsYou ? listed.first(where: \.isActionable) : nil
+    let inPage: (App) -> Bool = { app in
+      switch self.page {
+      case .updates, .needsYou, .drivers: listed.contains { $0.identifier == app.identifier }
+      case .allApps: self.snapshot.app(withIdentifier: app.identifier) != nil
+      case .history: false
+      }
+    }
+    // A selection the person made stays while the app exists; an automatic one follows the page.
+    if let selectedApp, snapshot.firstIndex(of: selectedApp) != nil,
+      userChoseSelection || inPage(selectedApp)
+    {
       let refreshedApp = snapshot.app(withIdentifier: selectedApp.identifier)
       if !userChoseSelection, refreshedApp?.isActionable != true, let firstActionable {
         self.selectedApp = firstActionable

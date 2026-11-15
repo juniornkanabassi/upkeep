@@ -79,6 +79,7 @@ final class AppDependencyBoundaryTest: XCTestCase {
       bulkUpdateService: UpdateCheckingService(
         coordinator: StubCheckCoordinator(apps: []), appStoreUpdateService: StubAppStoreService(),
         updating: updating))
+    model.page = .allApps  // Updates lists only the first two; All Apps lists all three.
     model.select(Set([first.identifier, second.identifier, handoff.identifier]))
     XCTAssertEqual(model.selectedAppIDs.count, 3)
     model.updateSelection(model.selectedAppIDs)
@@ -110,6 +111,7 @@ final class AppDependencyBoundaryTest: XCTestCase {
       snapshot: AppListSnapshot(withApps: apps, filterQuery: nil, settings: settings),
       settings: settings, updating: updating, bulkUpdateService: service)
     let identifiers = Set(apps.map(\.identifier))
+    model.page = .allApps  // All four rows are visible there.
     model.select(identifiers)
     let commands = AppCommands(
       updateCheckingService: service, updatesListViewModel: model,

@@ -27,7 +27,7 @@ enum SidebarUpdateActionTitle {
   static func shortText(for app: App) -> String {
     if app.relaunchesToUpdate { return isRunning(app) ? "Relaunch" : "Open" }
     return app.capability.isAutomatic
-      ? NSLocalizedString("UpdateAction", comment: "Action to update a given app.") : "Open"
+      ? NSLocalizedString("UpdateAction", comment: "Action to update a given app.") : text(for: app)
   }
 
   /// Whether the app at this exact path is running: Relaunch for a running app, Open for a

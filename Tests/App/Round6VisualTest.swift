@@ -54,10 +54,10 @@ final class Round6VisualTest: XCTestCase {
       updatesListViewModel: model,
       settingsViewModel: SettingsViewModel(
         settings: settings, installHelperService: HelperRegistrationFixture(),
-        directoryStoreFactory: { _ in SnapshotDirectoryStore() }))
+        directoryStoreFactory: { _ in SnapshotDirectoryStore() }), preferences: fixture.preferences)
     environment.menuBar.refresh(with: store.apps)
     XCTAssertEqual(
-      environment.menuBar.updateAllCount, 5, "Goodnotes, Notion, Word, Audio Hijack, Discord")
+      environment.menuBar.updateAllCount, 4, "Goodnotes, Notion, Word, Discord; Audio Hijack runs")
     for app in store.apps {
       _ = await IconCache.shared.icon(for: app)
       _ = await IconCache.shared.icon(for: app, pointSize: VisualMetrics.detailIconSize)
@@ -65,7 +65,7 @@ final class Round6VisualTest: XCTestCase {
     model.startObserving()
     defer { model.stopObserving() }
     try await Task.sleep(for: .milliseconds(200))
-    XCTAssertEqual(model.selectedApp?.name, "Goodnotes", "The first update is selected")
+    XCTAssertEqual(model.selectedApp?.name, "Audio Hijack", "The first update (Updating now) is selected")
 
     let historyURL = FileManager.default.temporaryDirectory.appendingPathComponent(
       "round6-\(UUID().uuidString).jsonl")
@@ -92,6 +92,8 @@ final class Round6VisualTest: XCTestCase {
         dark: dark, name: "native-sidebar-\(suffix)")
       model.select(selected)
     }
+
+    try await renderRound8(environment: environment, model: model, fixture: fixture, history: history)
 
     let detail = CGSize(width: 560, height: 420)
     let goodnotes = try XCTUnwrap(store.apps.first { $0.name == "Goodnotes" })
@@ -204,22 +206,15 @@ final class Round6VisualTest: XCTestCase {
 
     }
 
-    // A menu bar menu only draws while it is open; record its real structure instead.
-    let menu = NSHostingMenu(
-      rootView: MenuBarContentView(
-        model: environment.menuBar, checking: environment.updateCheckingService, select: { _ in }))
-    try await Task.sleep(for: .milliseconds(100))
-    menu.update()
-    let lines = menu.items.map { item in
-      item.isSeparatorItem
-        ? "────────"
-        : (item.isSectionHeader
-          ? "[\(item.title)]" : "  \(item.title)\(item.isEnabled ? "" : "  (disabled)")")
-    }
-    XCTAssertTrue(lines.contains("  Ready to Update  (disabled)"), lines.joined(separator: "\n"))
-    XCTAssertTrue(lines.contains("  Needs You  (disabled)"), lines.joined(separator: "\n"))
-    XCTAssertNotEqual(lines.first, "────────", "The menu must not start with a separator")
-    XCTAssertTrue(lines.contains("  Update All (5)"), lines.joined(separator: "\n"))
+    // The menu bar window's text, for the snapshot gate alongside its PNGs.
+    let menu = environment.menuBar
+    var lines = [MenuBarContentView.headline(model: menu, checking: false)]
+    lines += menu.running.map { "  running: " + $0.name }
+    lines += menu.updates.map { "  " + $0.name }
+    lines.append("  Update All (\(menu.updateAllCount))")
+    lines.append("  \(menu.needsYouCount) items need you")
+    XCTAssertEqual(lines.first, "1 update running")
+    XCTAssertTrue(lines.contains("  Update All (4)"), lines.joined(separator: "\n"))
     try write(Data(lines.joined(separator: "\n").utf8), name: "menu-bar.txt")
   }
 
@@ -294,6 +289,117 @@ final class Round6VisualTest: XCTestCase {
       XCTAssertFalse(text.localizedCaseInsensitiveContains("password"), text)
     }
     XCTAssertEqual(cask.routeShortDescription, "Opens Terminal with the brew command")
+  }
+
+  /// Round 8: every library page in the full window at the mockups' 1360 by 900, the small
+  /// window, the sidebar, the uninstall sheet states and the menu bar window.
+  private func renderRound8(
+    environment: AppEnvironment, model: UpdatesListViewModel, fixture: Round6Fixture,
+    history: UpdateHistoryStore
+  ) async throws {
+    func app(_ name: String) throws -> Latest.App {
+      try XCTUnwrap(fixture.store.apps.first { $0.name == name })
+    }
+    let running = try app("Audio Hijack")
+    AgentActivity.shared.started(running.fileURL.path, by: "mcp-codex-mcp-client-1")
+    AgentActivity.shared.attach(running.fileURL.path, caller: "mcp-claude-code-2")
+    defer { _ = AgentActivity.shared.finish(running.fileURL.path) }
+    try fixture.preferences.set(.autoUpdate, true, for: try app("Goodnotes"), caller: "gui")
+    try fixture.preferences.set(.ignore, true, for: try app("Rectangle"), caller: "mcp-claude-code-2")
+    var updated = UpdateHistoryEntry(
+      before: try app("Notion").bundle, after: try app("Notion").bundle,
+      outcome: .updated(from: "4.18.0", to: "4.19.2"))
+    updated.caller = "mcp-codex-mcp-client-1"
+    updated.followers = ["mcp-claude-code-2"]
+    history.record(updated)
+    var ignored = UpdateHistoryEntry(
+      before: try app("Rectangle").bundle, after: try app("Rectangle").bundle,
+      outcome: .settingChanged(setting: "ignore", on: true))
+    ignored.caller = "mcp-claude-code-2"
+    history.record(ignored)
+    history.record(
+      UpdateHistoryEntry(
+        before: try app("Discord").bundle, after: try app("Discord").bundle,
+        outcome: .failed(reason: "The new copy failed the signature check. 0.0.351 is still installed", logPath: nil)))
+    try await Task.sleep(for: .milliseconds(150))
+
+    let pages: [(LibraryPage, String?, String)] = [
+      (.updates, "Goodnotes", "page-updates"), (.updates, "Audio Hijack", "page-updates-running"),
+      (.needsYou, "OBS", "page-needs-you"), (.allApps, "Rectangle", "page-all-apps"),
+      (.drivers, "ARK", "page-drivers"), (.history, nil, "page-history"),
+    ]
+    for dark in [false, true] {
+      let suffix = dark ? "dark" : "light"
+      for (page, selection, name) in pages {
+        model.page = page
+        if let selection { model.select(try app(selection)) }
+        try await render(
+          LatestRootView(
+            environment: environment,
+            detailViewModel: ReleaseNotesDetailViewModel(releaseNotesProvider: SnapshotNotesProvider()),
+            history: history),
+          size: CGSize(width: 1360, height: 900), dark: dark, window: true, mainScene: true,
+          name: "\(name)-\(suffix)")
+      }
+      model.page = .updates
+      model.select(try app("Goodnotes"))
+      try await render(
+        LatestRootView(
+          environment: environment,
+          detailViewModel: ReleaseNotesDetailViewModel(releaseNotesProvider: SnapshotNotesProvider()),
+          history: history),
+        size: CGSize(width: 960, height: 600), dark: dark, window: true, mainScene: true,
+        name: "page-small-window-\(suffix)")
+      // The split view's sidebar material can't be composited offscreen; render it alone.
+      try await render(
+        LibrarySidebar(viewModel: model).environment(\.appPreferences, fixture.preferences),
+        size: CGSize(width: 260, height: 640), dark: dark, name: "library-sidebar-\(suffix)")
+
+      let groups = UninstallSheetModel.groups([
+        Self.item("/Applications/AlDente.app", 26_000_000, .app),
+        Self.item("~/Library/Caches/com.apphousekitchen.aldente-pro", 140_000, .cache),
+        Self.item("/Library/LaunchDaemons/com.apphousekitchen.aldente-pro.helper.plist", 2_000, .launchAgent, admin: true),
+        Self.item("/Library/PrivilegedHelperTools/com.apphousekitchen.aldente-pro.helper", 466_000, .system, admin: true),
+        Self.item("~/Library/Application Support/AlDente", 3_100_000, .data, personal: true),
+      ])
+      let aldente = try app("Goodnotes")
+      try await render(
+        UninstallSheet(model: UninstallSheetModel(app: aldente, groups: groups), dismiss: {}),
+        size: CGSize(width: 620, height: 640), dark: dark, name: "uninstall-sheet-\(suffix)")
+      try await render(
+        UninstallSheet(
+          model: UninstallSheetModel(
+            app: aldente, groups: groups,
+            note: "Nothing was removed, because the password request was cancelled. Untick Background helper to remove the rest without your password."),
+          dismiss: {}),
+        size: CGSize(width: 620, height: 720), dark: dark, name: "uninstall-cancelled-\(suffix)")
+      try await render(
+        UninstallSheet(
+          model: UninstallSheetModel(
+            app: aldente, groups: groups,
+            phase: .result([
+              .init(path: "/Applications/AlDente.app", removed: true, message: nil),
+              .init(path: "/Library/PrivilegedHelperTools/com.apphousekitchen.aldente-pro.helper", removed: true, message: nil),
+              .init(path: "~/Library/Caches/com.apphousekitchen.aldente-pro", removed: false, message: "The file is locked. It stayed where it was."),
+            ])), dismiss: {}),
+        size: CGSize(width: 620, height: 420), dark: dark, name: "uninstall-result-\(suffix)")
+      try await render(
+        MenuBarContentView(
+          model: environment.menuBar, checking: environment.updateCheckingService,
+          updating: fixture.updating, select: { _ in }),
+        size: CGSize(width: 380, height: 460), dark: dark, name: "menu-bar-\(suffix)")
+    }
+    model.page = .updates
+    model.select(try app("Goodnotes"))
+  }
+
+  private static func item(
+    _ path: String, _ size: Int64, _ kind: UninstallItem.Kind, admin: Bool = false,
+    personal: Bool = false
+  ) -> UninstallItem {
+    UninstallItem(
+      path: path, root: "/", size: size, kind: kind, personalData: personal, needsAdmin: admin,
+      inode: 0, device: 0, modified: 0, changed: 0, identityHash: nil, selected: !personal)
   }
 
   private func render<Content: View>(
@@ -378,7 +484,12 @@ final class Round6VisualTest: XCTestCase {
 private final class Round6Updating: AppUpdating {
   let states: [Latest.App.Bundle.Identifier: UpdateProgressState]
   init(states: [Latest.App.Bundle.Identifier: UpdateProgressState]) { self.states = states }
-  func isUpdating(_ app: Latest.App) -> Bool { false }
+  func isUpdating(_ app: Latest.App) -> Bool {
+    guard let state = states[app.identifier] else { return false }
+    if case .none = state { return false }
+    if case .error = state { return false }
+    return true
+  }
   func update(_ app: Latest.App, isBulkUpdate: Bool) {}
   func cancel(_ app: Latest.App) {}
   @MainActor func retryTermination(_ app: Latest.App) {}
@@ -405,6 +516,7 @@ private struct Round6Fixture {
   let coordinator: SnapshotCoordinator
   let store: AppDataStore
   let updating: Round6Updating
+  let preferences: AppPreferences
 
   init(defaults: UserDefaults) {
     coordinator = SnapshotCoordinator(defaults: defaults)
@@ -417,7 +529,8 @@ private struct Round6Fixture {
       _ name: String, path: String, version: String, remote: String?, source: Latest.App.Source,
       bundleID: String? = nil, action: Latest.App.Update.Action = .builtIn { _ in },
       unknown: Bool = false, state: UpdateProgressState? = nil, days: Double = 0,
-      minimumOS: Int? = nil
+      minimumOS: Int? = nil, kind: Latest.App.Bundle.Kind = .app, parent: String? = nil,
+      host: String? = nil, note: String? = nil
     ) {
       let bundle = Latest.App.Bundle(
         version: Version(versionNumber: version, buildNumber: nil), name: name,
@@ -426,8 +539,14 @@ private struct Round6Fixture {
         fileURL: FileManager.default.temporaryDirectory
           .appendingPathComponent("UpdaterSnapshotFixtures", isDirectory: true)
           .appendingPathComponent(URL(fileURLWithPath: path).lastPathComponent, isDirectory: true),
-        source: source,
-        modificationDate: Date(timeIntervalSince1970: 1_790_000_000 - days * 86_400))
+        source: kind == .driver ? .driver : source,
+        modificationDate: Date(timeIntervalSince1970: 1_790_000_000 - days * 86_400),
+        kind: kind, parent: parent, note: note,
+        hostURL: host.map {
+          FileManager.default.temporaryDirectory
+            .appendingPathComponent("UpdaterSnapshotFixtures", isDirectory: true)
+            .appendingPathComponent($0, isDirectory: true)
+        })
       _ = store.set(appBundle: bundle)
       if let remote {
         _ = store.set(
@@ -493,7 +612,25 @@ private struct Round6Fixture {
     add(
       "Updater", path: "/Applications/JuniorOS Apps/Updater.app", version: "0.8.0",
       remote: nil, source: .none, bundleID: Foundation.Bundle.main.bundleIdentifier, days: 11)
+    add(
+      "Creative Cloud", path: "/Applications/Creative Cloud.app", version: "6.7.0",
+      remote: "6.7.0", source: .vendor, action: .external(label: "Creative Cloud") { _ in }, days: 12)
+    add("Core Sync", path: "/Applications/Core Sync.app", version: "7.1", remote: nil, source: .none, days: 12, parent: "Creative Cloud")
+    add("CCXProcess", path: "/Applications/CCXProcess.app", version: "6.1", remote: nil, source: .none, days: 12, parent: "Creative Cloud")
+    add("SwitcherPanel", path: "/Applications/SwitcherPanel.app", version: "10.1", remote: nil, source: .none, days: 13, parent: "Blackmagic ATEM Switchers")
+    add("SwitcherRecord", path: "/Applications/SwitcherRecord.app", version: "10.1", remote: nil, source: .none, days: 13, parent: "Blackmagic ATEM Switchers")
+    add(
+      "ARK", path: "/Library/Audio/Plug-Ins/HAL/ARK.driver", version: "13.6.0", remote: "13.6.0",
+      source: .driver, days: 14, kind: .driver, note: "Up to date. Loopback still uses an older copy (13.5.6)")
+    add(
+      "SoftRAID", path: "/Library/Extensions/SoftRAID.kext", version: "6.3.1", remote: nil,
+      source: .driver, days: 14, kind: .driver, note: "No update source")
+    add(
+      "Camera Hub camera", path: "/Library/SystemExtensions/CameraHub.systemextension",
+      version: "1.1", remote: nil, source: .driver, days: 14, kind: .driver, parent: "Raycast",
+      host: "Raycast.app", note: "Updates with Raycast")
     updating = Round6Updating(states: states)
+    preferences = AppPreferences(defaults: defaults, setIgnoredState: { [store] on, app in store.setIgnoredState(on, for: app) }, history: nil)
   }
 }
 

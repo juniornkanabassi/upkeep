@@ -18,6 +18,7 @@ struct LatestRootView: View {
 
   @FocusState private var focus: SidebarFocus?
   @ObservedObject private var updatesViewModel: UpdatesListViewModel
+  @ObservedObject private var checking: UpdateCheckingService
   @ObservedObject private var searchFocusController: SearchFocusController
   @State private var columnVisibility = NavigationSplitViewVisibility.all
   init(
@@ -31,30 +32,28 @@ struct LatestRootView: View {
     self.history = history
     _receipt = StateObject(wrappedValue: receipt ?? UpdateReceiptModel(history: history))
     _updatesViewModel = ObservedObject(wrappedValue: environment.updatesListViewModel)
+    _checking = ObservedObject(wrappedValue: environment.updateCheckingService)
     _searchFocusController = ObservedObject(wrappedValue: environment.searchFocusController)
   }
 
   var body: some View {
     NavigationSplitView(columnVisibility: $columnVisibility) {
-      UpdatesSidebarView(
-        viewModel: updatesViewModel,
-        searchFocusController: environment.searchFocusController
-      )
-      .navigationSplitViewColumnWidth(min: 260, ideal: VisualMetrics.sidebarIdealWidth, max: 480)
+      LibrarySidebar(viewModel: updatesViewModel)
+        .navigationSplitViewColumnWidth(min: 200, ideal: VisualMetrics.sidebarIdealWidth, max: 320)
     } detail: {
-      VStack(spacing: 0) {
-        if let message = receipt.message {
-          UpdateReceiptBanner(message: message, dismiss: receipt.dismiss)
+      UpdatesSidebarView(viewModel: updatesViewModel, searchFocusController: environment.searchFocusController) { focus in
+        VStack(spacing: 0) {
+          if let message = receipt.message {
+            UpdateReceiptBanner(message: message, dismiss: receipt.dismiss)
+          }
+          page(focus: focus)
         }
-        ReleaseNotesDetailView(
-          updatesViewModel: updatesViewModel,
-          detailViewModel: detailViewModel, history: history
-        )
       }
-      .frame(minWidth: VisualMetrics.detailMinWidth)
-      .navigationTitle("Updates")
+      .navigationTitle(updatesViewModel.page.title)
+      .navigationSubtitle(subtitle)
     }
     .environment(\.windowFocus, $focus)
+    .environment(\.appPreferences, environment.preferences)
     .onChange(of: searchFocusController.request) { _, request in
       if request != nil { columnVisibility = .all }
     }
@@ -65,8 +64,59 @@ struct LatestRootView: View {
     .toolbar {
       UpdatesToolbar(
         service: environment.updateCheckingService, summary: environment.menuBar,
+        prominent: updatesViewModel.page == .updates,
         reload: { environment.commands.reload() },
         updateAll: { environment.commands.updateAll() })
+    }
+    .sheet(item: $updatesViewModel.uninstallTarget) { app in
+      UninstallSheet(
+        model: UninstallSheetModel(app: app, service: environment.uninstall),
+        dismiss: { updatesViewModel.uninstallTarget = nil })
+    }
+  }
+
+  @ViewBuilder
+  private func page(focus: FocusState<SidebarFocus?>.Binding) -> some View {
+    if updatesViewModel.page == .history {
+      HistoryPage(
+        history: history, apps: updatesViewModel.snapshot.apps, query: updatesViewModel.searchQuery)
+    } else {
+      GeometryReader { geometry in
+        HStack(spacing: 0) {
+          Group {
+            if updatesViewModel.page == .allApps {
+              AllAppsTable(viewModel: updatesViewModel)
+            } else {
+              UpdatesScrollList(viewModel: updatesViewModel, focus: focus)
+            }
+          }
+          .frame(width: Self.listWidth(page: updatesViewModel.page, total: geometry.size.width))
+          Divider()
+          ReleaseNotesDetailView(
+            updatesViewModel: updatesViewModel, detailViewModel: detailViewModel, history: history)
+        }
+      }
+    }
+  }
+
+  /// The list keeps a readable width; the detail takes the rest.
+  static func listWidth(page: LibraryPage, total: CGFloat) -> CGFloat {
+    let share: CGFloat = page == .allApps ? 0.62 : 0.46
+    return min(max(total * share, 300), max(total - 300, 300))
+  }
+
+  private var subtitle: String {
+    let content = updatesViewModel.content(ignoringSearch: true)
+    switch updatesViewModel.page {
+    case .updates:
+      return environment.updateCheckingService.lastFinished.map {
+        "Checked \($0.formatted(.relative(presentation: .named)))"
+      } ?? "Not checked yet"
+    case .needsYou: return "Items with a next step. Apps that can't be checked at all stay in All Apps"
+    case .allApps:
+      return "\(LibraryContent.count(content.allAppsCount, "app")). \(LibraryContent.count(content.helperCount, "helper")) sit inside the app or folder they came with"
+    case .drivers: return "Found on this Mac. New versions come from each maker's download list or Homebrew"
+    case .history: return "Updates, settings and removals, newest first"
     }
   }
 }

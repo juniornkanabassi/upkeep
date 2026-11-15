@@ -21,6 +21,8 @@ final class UpdateCheckingService: NSObject, ObservableObject, UpdateCheckProgre
   @Published private(set) var isIndeterminate = false
   @Published private(set) var checkedApps = 0
   @Published private(set) var totalApps = 0
+  /// When the last full check finished, for "Checked 2 minutes ago".
+  @Published private(set) var lastFinished: Date?
   private var currentCheckingGeneration: Int?
   private var activeCheckingBatches = 0
   private let coordinator: any UpdateCheckCoordinating
@@ -177,6 +179,7 @@ final class UpdateCheckingService: NSObject, ObservableObject, UpdateCheckProgre
     currentCheckingGeneration = nil
     isRunning = false
     isIndeterminate = false
+    lastFinished = Date()
     MigrationTelemetry.shared.scanFinished(appCount: totalApps)
   }
 }

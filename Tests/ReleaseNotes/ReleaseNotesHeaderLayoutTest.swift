@@ -41,6 +41,7 @@ final class ReleaseNotesHeaderLayoutTest: XCTestCase {
       }
     }
     XCTAssertEqual(changedAboveDate, 0, "Adding a date must not move the title or version")
-    XCTAssertGreaterThan(changedBelowVersion, 0, "The date must remain visible below the version")
+    // Round 8 mockups: the header shows name, versions and source; the date is gone.
+    XCTAssertEqual(changedBelowVersion, 0, "The header no longer shows a release date")
   }
 }

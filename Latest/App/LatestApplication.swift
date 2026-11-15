@@ -45,10 +45,13 @@ struct LatestApplication: SwiftUI.App {
     MenuBarExtra(isInserted: $showsMenuBarItem) {
       MenuBarContentView(
         model: environment.menuBar, checking: environment.updateCheckingService,
-        select: { environment.updatesListViewModel.select($0) })
+        select: { environment.updatesListViewModel.select($0) },
+        showPage: { environment.updatesListViewModel.page = $0 })
+        .modifier(ApplicationAppearanceModifier(appearance: appearance))
     } label: {
       MenuBarLabel(model: environment.menuBar)
     }
+    .menuBarExtraStyle(.window)
 
     Settings {
       SettingsRootView(viewModel: environment.settingsViewModel)

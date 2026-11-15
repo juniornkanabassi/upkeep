@@ -21,6 +21,8 @@ final class AppEnvironment: ObservableObject {
   let commands: AppCommands
   let menuBar: MenuBarViewModel
   let preferences: AppPreferences
+  /// Shared by the window's uninstall sheet and the control socket.
+  let uninstall: UninstallService
   private var startupTask: Task<Void, Never>?
   private var backgroundChecks: BackgroundCheckScheduler?
   private var notifications: UpdateNotificationController?
@@ -77,6 +79,7 @@ final class AppEnvironment: ObservableObject {
         defaults: .standard,
         setIgnoredState: { [coordinator] in coordinator.appProvider.setIgnoredState($0, for: $1) },
         history: .shared)
+    self.uninstall = .live(updating: updating, history: .shared)
     self.searchFocusController = searchFocusController
     self.coordinator = coordinator
     self.updating = updating
@@ -92,7 +95,8 @@ final class AppEnvironment: ObservableObject {
     )
     self.menuBar = MenuBarViewModel(
       appProvider: coordinator.appProvider, settings: settings,
-      updateAllCandidates: { [updateCheckingService] in updateCheckingService.updateAllCandidates })
+      updateAllCandidates: { [updateCheckingService] in updateCheckingService.updateAllCandidates },
+      isUpdating: { [updating] in updating.isUpdating($0) })
   }
 
   private var launchObserver: NSObjectProtocol?
@@ -187,7 +191,7 @@ extension AppEnvironment {
         history: .shared,
         setIgnored: { [coordinator] ignored, app in coordinator.appProvider.setIgnoredState(ignored, for: app) },
         preferences: preferences))
-    service.uninstall = .live(updating: updating, history: .shared)
+    service.uninstall = uninstall
     do {
       let server = try ControlServer(path: ControlPaths.socket) { request in
         await service.handle(request)

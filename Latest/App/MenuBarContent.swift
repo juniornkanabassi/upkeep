@@ -17,11 +17,16 @@ final class MenuBarViewModel: ObservableObject {
   @Published private(set) var summary = UpdateStatusSummary()
   /// How many apps Update All would start now (the window's toolbar shows it too).
   @Published private(set) var updateAllCount = 0
+  /// Apps with a job in the scheduler, whoever started it.
+  @Published private(set) var running = [App]()
+  /// Items in Needs You, for the menu's link to it.
+  @Published private(set) var needsYouCount = 0
   var canUpdateAll: Bool { updateAllCount > 0 }
 
   private let appProvider: any AppProviding
   private let settings: any AppListSettingsProviding
   private let updateAllCandidates: () -> [App]
+  private let isUpdating: (App) -> Bool
   private var apps = [App]()
   private var observations = [Task<Void, Never>]()
   private var observers = [NSObjectProtocol]()
@@ -30,8 +35,10 @@ final class MenuBarViewModel: ObservableObject {
   init(
     appProvider: any AppProviding,
     settings: any AppListSettingsProviding,
-    updateAllCandidates: @escaping () -> [App]
+    updateAllCandidates: @escaping () -> [App],
+    isUpdating: @escaping (App) -> Bool = { _ in false }
   ) {
+    self.isUpdating = isUpdating
     self.appProvider = appProvider
     self.settings = settings
     self.updateAllCandidates = updateAllCandidates
@@ -85,6 +92,8 @@ final class MenuBarViewModel: ObservableObject {
       group.apps.contains { !$0.isIgnored && $0.isActionable }
     }
     updateAllCount = updateAllCandidates().count
+    running = self.apps.filter(isUpdating)
+    needsYouCount = LibraryContent(apps: self.apps, query: nil).needsYouCount
     summary = UpdateStatusSummary(apps: self.apps)
   }
 }
@@ -110,14 +119,19 @@ struct MainWindowOpenerCapture: ViewModifier {
 }
 
 /// A status item draws only plain images and text, so the label stays one image or one
-/// image-and-title Label, with no stacks or modifiers that could leave it empty.
+/// image-and-title Label, with no stacks or modifiers that could leave it empty. While a job
+/// runs the icon is the busy glyph.
 struct MenuBarLabel: View {
   @ObservedObject var model: MenuBarViewModel
 
   var body: some View {
     let count = model.updates.count
-    if count == 0 {
-      Image("MenuBarIcon", label: Text("Updater"))
+    if !model.running.isEmpty {
+      Image(systemName: "arrow.triangle.2.circlepath")
+        .accessibilityLabel(
+          model.running.count == 1 ? "Upkeep, 1 update running" : "Upkeep, \(model.running.count) updates running")
+    } else if count == 0 {
+      Image("MenuBarIcon", label: Text("Upkeep"))
     } else {
       Label {
         Text("\(count)")
@@ -125,64 +139,161 @@ struct MenuBarLabel: View {
         Image(
           "MenuBarIcon",
           label: Text(
-            count == 1 ? "Updater, 1 update available" : "Updater, \(count) updates available"))
+            count == 1 ? "Upkeep, 1 update available" : "Upkeep, \(count) updates available"))
       }
       .labelStyle(.titleAndIcon)
     }
   }
 }
 
+/// The menu bar window: a header saying what is happening, one row per running job (with the
+/// callers attached to it and Stop), the updates waiting, a link to Needs You, then commands.
 struct MenuBarContentView: View {
   @ObservedObject var model: MenuBarViewModel
   @ObservedObject var checking: UpdateCheckingService
+  var updating: any AppUpdating = AppUpdateService.shared
   let select: (App) -> Void
+  var showPage: (LibraryPage) -> Void = { _ in }
+  @ObservedObject private var activity = AgentActivity.shared
+  @Environment(\.openSettings) private var openSettings
 
   var body: some View {
-    Group {
-      if model.updateSections.isEmpty {
-        Text(
-          checking.isRunning
-            ? "Checking for updates…"
-            : model.summary.isAllCurrent ? "Everything is up to date" : model.summary.text)
+    VStack(alignment: .leading, spacing: Space.sm) {
+      VStack(alignment: .leading, spacing: 2) {
+        Text(Self.headline(model: model, checking: checking.isRunning)).font(.headline)
+        if !subline.isEmpty { Text(subline).font(.callout).foregroundStyle(.secondary) }
       }
-      // The same sections and ordering as the sidebar, without its non-actionable groups.
-      ForEach(model.updateSections) { group in
-        if group.id != model.updateSections.first?.id { Divider() }
-        Text(group.section.title)
-        rows(group.apps)
+      .padding(.horizontal, Space.sm)
+      if !model.running.isEmpty || !waiting.isEmpty { Divider() }
+      ForEach(model.running, id: \.identifier) { app in jobRow(app) }
+      ForEach(waiting.prefix(6), id: \.identifier) { app in
+        menuButton("\(app.name)  \(app.versionSummary)") {
+          select(app)
+          MainWindow.show()
+        }
+      }
+      if model.updateAllCount > 0 {
+        menuButton("Update All (\(model.updateAllCount))") { checking.updateAll() }
+          .accessibilityHint("Installs every update Upkeep can install itself")
+      }
+      if model.needsYouCount > 0 {
+        Divider()
+        Button {
+          showPage(.needsYou)
+          MainWindow.show()
+        } label: {
+          HStack {
+            Label(
+              model.needsYouCount == 1 ? "1 item needs you" : "\(model.needsYouCount) items need you",
+              systemImage: "exclamationmark.circle"
+            )
+            .foregroundStyle(.primary)
+            Spacer()
+            Image(systemName: "chevron.right").foregroundStyle(.secondary)
+          }
+          .contentShape(Rectangle())
+        }
+        .buttonStyle(MenuRowStyle())
       }
       Divider()
-      Button(model.updateAllCount > 0 ? "Update All (\(model.updateAllCount))" : "Update All") {
-        checking.updateAll()
-      }
-      .disabled(!model.canUpdateAll)
-      .accessibilityHint("Installs every update under Ready to Update")
-      Button("Check for Updates") { checking.checkForUpdates() }
+      menuButton("Check Now", shortcut: "⌘R") { checking.checkForUpdates() }
         .disabled(checking.isRunning)
-      Divider()
-      Button("Open Updater") { MainWindow.show() }
-      Button("Quit Updater") { NSApp.terminate(nil) }
+        .keyboardShortcut("r")
+      menuButton("Open Upkeep") { MainWindow.show() }
+      menuButton("Settings…", shortcut: "⌘,") { openSettings() }
+      menuButton("Quit Upkeep", shortcut: "⌘Q") { NSApp.terminate(nil) }
         .keyboardShortcut("q")
     }
+    .padding(Space.sm)
+    .frame(width: 380)
     .modifier(MainWindowOpenerCapture())
+    .accessibilityIdentifier("menuBar.content")
   }
 
-  private func rows(_ apps: [App]) -> some View {
-    ForEach(apps, id: \.identifier) { app in
-      Button(Self.title(for: app)) {
-        select(app)
-        MainWindow.show()
-      }
-      .accessibilityLabel(Self.title(for: app).replacingOccurrences(of: "→", with: "to"))
+  /// Waiting updates that are not already running.
+  private var waiting: [App] {
+    model.updates.filter { app in
+      app.capability.isAutomatic && !model.running.contains { $0.identifier == app.identifier }
     }
   }
 
-  /// "Goodnotes  7.1.32 → 7.1.34" for installs; hand-offs add where they go.
-  static func title(for app: App) -> String {
-    let versions = app.versionSummary
-    let base = versions.isEmpty ? app.name : "\(app.name)  \(versions)"
-    return app.capability.isAutomatic
-      ? base : "\(base)  ·  \(SidebarUpdateActionTitle.text(for: app))"
+  static func headline(model: MenuBarViewModel, checking: Bool) -> String {
+    if !model.running.isEmpty {
+      return model.running.count == 1 ? "1 update running" : "\(model.running.count) updates running"
+    }
+    if checking { return "Checking for updates…" }
+    if model.updateAllCount > 0 {
+      return model.updateAllCount == 1 ? "1 update ready" : "\(model.updateAllCount) updates ready"
+    }
+    return model.summary.isAllCurrent ? "Everything is up to date" : "No updates Upkeep can install"
+  }
+
+  private var subline: String {
+    let checked = checking.lastFinished.map { "Checked \($0.formatted(.relative(presentation: .named)))" }
+    let rest = model.running.isEmpty || model.updateAllCount > 0 ? nil : "Nothing else Upkeep can install."
+    return [rest, checked].compactMap { $0 }.joined(separator: " ")
+  }
+
+  private func jobRow(_ app: App) -> some View {
+    let job = activity.job(for: app.fileURL.path)
+    let callers = [
+      job.map { CallerName.display($0.starter.caller) },
+      job?.followers.first.map { "\(CallerName.display($0.caller)) also waiting on it" },
+    ].compactMap { $0 }.joined(separator: " · ")
+    return ObservedUpdatePresentation(app: app, updating: updating) { presentation in
+      HStack(alignment: .center, spacing: Space.sm) {
+        AppIconView(app: app, size: 28)
+        VStack(alignment: .leading, spacing: 2) {
+          Text(app.name).font(.headline)
+          if !callers.isEmpty { Text(callers).font(.callout).foregroundStyle(.secondary) }
+          Text(JobStep.summary(for: app, state: updating.state(for: app.identifier)))
+            .font(.callout).foregroundStyle(.secondary)
+          ProgressView(value: presentation.fraction).progressViewStyle(.linear)
+        }
+        StopJobButton(app: app, updating: updating)
+      }
+      .padding(.horizontal, Space.sm)
+      .accessibilityElement(children: .contain)
+    }
+  }
+
+  private func menuButton(_ title: String, shortcut: String? = nil, action: @escaping () -> Void)
+    -> some View
+  {
+    Button(action: action) {
+      HStack {
+        Text(title).foregroundStyle(.primary)
+        Spacer()
+        if let shortcut { Text(shortcut).foregroundStyle(.secondary) }
+      }
+      .contentShape(Rectangle())
+    }
+    .buttonStyle(MenuRowStyle())
+  }
+}
+
+/// Menu-like rows: full width, highlighted on hover.
+private struct MenuRowStyle: ButtonStyle {
+  func makeBody(configuration: Configuration) -> some View {
+    HoverRow(configuration: configuration)
+  }
+
+  private struct HoverRow: View {
+    let configuration: ButtonStyleConfiguration
+    @State private var hovering = false
+    @Environment(\.isEnabled) private var isEnabled
+
+    var body: some View {
+      configuration.label
+        .padding(.horizontal, Space.sm)
+        .padding(.vertical, Space.xs)
+        .background(
+          hovering && isEnabled ? Color.accentColor.opacity(0.18) : .clear,
+          in: RoundedRectangle(cornerRadius: Space.sm)
+        )
+        .opacity(isEnabled ? 1 : 0.4)
+        .onHover { hovering = $0 }
+    }
   }
 }
 

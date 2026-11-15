@@ -32,7 +32,12 @@ struct ReleaseNotesDetailView: View {
       app: detailViewModel.app,
       contentState: detailViewModel.contentState,
       updating: updatesViewModel.updating,
-      overview: DetailOverview(snapshot: updatesViewModel.snapshot), history: history
+      overview: DetailOverview(snapshot: updatesViewModel.snapshot), history: history,
+      companions: detailViewModel.app.map {
+        updatesViewModel.content(ignoringSearch: true).companions(of: $0)
+      } ?? [],
+      retryNotes: { detailViewModel.retry() },
+      uninstall: { updatesViewModel.uninstallTarget = $0 }
     )
     .task(id: updatesViewModel.selectedApp.map(ObjectIdentifier.init)) {
       detailViewModel.display(
@@ -97,47 +102,54 @@ struct ReleaseNotesDetailSurface: View {
   var updating: any AppUpdating = AppUpdateService.shared
   var overview = DetailOverview.chooseApp
   var history = UpdateHistoryStore.shared
+  var companions: [App] = []
+  var retryNotes: (() -> Void)?
+  var uninstall: ((App) -> Void)?
   @State private var lastResult: UpdateHistoryEntry?
 
   init(
     app: App?, contentState: ReleaseNotesDetailContentState,
     updating: any AppUpdating = AppUpdateService.shared,
-    overview: DetailOverview = .chooseApp, history: UpdateHistoryStore = .shared
+    overview: DetailOverview = .chooseApp, history: UpdateHistoryStore = .shared,
+    companions: [App] = [], retryNotes: (() -> Void)? = nil, uninstall: ((App) -> Void)? = nil
   ) {
     self.app = app
     self.contentState = contentState
     self.updating = updating
     self.overview = overview
     self.history = history
+    self.companions = companions
+    self.retryNotes = retryNotes
+    self.uninstall = uninstall
     _lastResult = State(initialValue: app.flatMap { history.latestEntry(for: $0.fileURL) })
   }
 
   var body: some View {
     VStack(spacing: 0) {
       if let app {
-        ReleaseNotesHeaderView(app: app, updating: updating)
-        ObservedUpdatePresentation(app: app, updating: updating) { presentation in
-          UpdateSummaryView(app: app, presentation: presentation, updating: updating)
-        }
-        .id(ObjectIdentifier(app))
-        if let lastResult {
-          HStack(alignment: .firstTextBaseline, spacing: Space.sm) {
-            Text("Last result").foregroundStyle(.secondary)
-            Text(lastResult.displaySummary)
-              .textSelection(.enabled)
-              .accessibilityLabel(
-                lastResult.displaySummary.replacingOccurrences(of: "→", with: "to"))
+        ScrollView {
+          VStack(alignment: .leading, spacing: Space.md) {
+            ReleaseNotesHeaderView(app: app, updating: updating)
+            ObservedUpdatePresentation(app: app, updating: updating) { presentation in
+              VStack(alignment: .leading, spacing: Space.xl) {
+                sections(.top, presentation: presentation)
+                // One web view for every selection: unchanged notes keep their page and scroll.
+                ReleaseNotesSection(
+                  app: app, presentation: presentation, contentState: contentState,
+                  retry: retryNotes)
+                sections(.bottom, presentation: presentation)
+              }
+            }
+            .padding(.horizontal, VisualMetrics.detailHeaderHorizontalPadding)
           }
-          .font(.callout)
+          .padding(.vertical, Space.lg)
           .frame(maxWidth: .infinity, alignment: .leading)
-          .padding(.leading, Space.xxl)
-          .padding(.horizontal, VisualMetrics.detailHeaderHorizontalPadding)
-          .padding(.bottom, Space.md)
-          .accessibilityIdentifier("detail.lastResult")
         }
-        Divider()
+        .accessibilityIdentifier("detail.scroll")
+        DetailFooter(app: app, uninstall: uninstall)
+      } else {
+        DetailOverviewView(overview: overview)
       }
-      content
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
     .background(Color(nsColor: .textBackgroundColor))
@@ -154,35 +166,14 @@ struct ReleaseNotesDetailSurface: View {
     lastResult = app.flatMap { history.latestEntry(for: $0.fileURL) }
   }
 
-  private var content: some View {
-    ZStack {
-      ReleaseNotesWebView(text: displayedText)
-        .opacity(displayedText == nil ? 0 : 1)
-        .allowsHitTesting(displayedText != nil)
-        .accessibilityHidden(displayedText == nil)
-
-      if let app {
-        switch contentState {
-        case .message:
-          // No notes for this version: the facts about the app take their place.
-          AppInfoPanel(app: app)
-        case .loading:
-          ProgressView()
-            .controlSize(.regular)
-            .accessibilityLabel("Loading Release Notes")
-        case .text:
-          EmptyView()
-        }
-      } else {
-        DetailOverviewView(overview: overview)
-      }
-    }
-    .frame(maxWidth: .infinity, maxHeight: .infinity)
-  }
-
-  private var displayedText: ReleaseNotesContent? {
-    if case .text(let text) = contentState { return text }
-    return nil
+  private func sections(_ part: AppDetailSections.Part, presentation: UpdateActionPresentation)
+    -> some View
+  {
+    AppDetailSections(
+      app: app!, part: part, presentation: presentation, updating: updating,
+      lastResult: lastResult, companions: companions
+    )
+    .id(app.map(ObjectIdentifier.init))
   }
 }
 
@@ -200,7 +191,7 @@ struct ReleaseNotesHeaderView: View {
   }
 
   var body: some View {
-    HStack(spacing: Space.sm) {
+    HStack(alignment: .center, spacing: Space.lg) {
       Group {
         if let icon {
           Image(nsImage: icon)
@@ -213,41 +204,39 @@ struct ReleaseNotesHeaderView: View {
       .frame(width: VisualMetrics.detailIconSize, height: VisualMetrics.detailIconSize)
       .accessibilityHidden(true)
 
-      VStack(alignment: .leading, spacing: 0) {
+      VStack(alignment: .leading, spacing: Space.xs) {
         Text(app.name)
-          .font(.title3.weight(.semibold))
-          .lineLimit(1)
-          .truncationMode(.tail)
+          .font(.title2.weight(.semibold))
+          .fixedSize(horizontal: false, vertical: true)
           .help(app.name)
-
-        Text(versionLine)
-          .accessibilityLabel(versionLine.replacingOccurrences(of: "→", with: "to"))
-          .font(.subheadline.monospacedDigit())
-          .foregroundStyle(.secondary)
-          .lineLimit(1)
-        Text(
-          app.latestUpdateDate.map {
-            "Released \($0.formatted(.dateTime.year().month(.wide).day()))"
-          } ?? " "
-        )
-        .font(.subheadline)
-        .foregroundStyle(.secondary)
-        .lineLimit(1)
-        .accessibilityHidden(app.latestUpdateDate == nil)
+        HStack(alignment: .firstTextBaseline, spacing: Space.sm) {
+          Text(versionLine)
+            .accessibilityLabel(versionLine.replacingOccurrences(of: "→", with: "to"))
+            .font(.body.monospacedDigit())
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+          Text(app.sourceName)
+            .font(.caption)
+            .padding(.horizontal, Space.xs + 2)
+            .padding(.vertical, 2)
+            .background(.quaternary, in: RoundedRectangle(cornerRadius: 4))
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+            .accessibilityLabel("Checked with \(app.sourceName)")
+        }
       }
       .frame(maxWidth: .infinity, alignment: .leading)
       .layoutPriority(1)
 
-      UpdateActionView(app: app, updating: updating)
-        .id(appIdentity)
+      // Up-to-date apps, helpers and drivers have nothing to do here; the footer has Finder.
+      if app.isActionable || !Self.isIdle(updating.state(for: app.identifier)) {
+        UpdateActionView(app: app, updating: updating)
+          .id(appIdentity)
+      }
 
     }
     .padding(.horizontal, VisualMetrics.detailHeaderHorizontalPadding)
-    .frame(height: VisualMetrics.detailHeaderHeight)
-    .background(.bar)
-    .overlay(alignment: .bottom) {
-      Divider()
-    }
+    .frame(minHeight: VisualMetrics.detailHeaderHeight)
     .accessibilityElement(children: .contain)
     .accessibilityIdentifier("release-notes.header")
     .task(id: IconCache.shared.cacheKey(for: app, pointSize: VisualMetrics.detailIconSize)) {
@@ -259,131 +248,18 @@ struct ReleaseNotesHeaderView: View {
     }
   }
 
+  private static func isIdle(_ state: UpdateProgressState) -> Bool {
+    if case .none = state { return true }
+    return false
+  }
+
   private var versionLine: String {
     let current = app.localizedVersionInformation?.rawCurrent ?? ""
-    if app.availabilityUnknown {
-      return "Version \(current) · newer version unknown"
-    }
+    if app.availabilityUnknown { return "\(current) installed" }
     if app.updateAvailable, let new = app.localizedVersionInformation?.rawNew {
-      return "Version \(current) → \(new)"
+      return "\(current) → \(new)"
     }
-    return current.isEmpty ? "" : "Version \(current)"
-  }
-}
-
-/// One plain sentence under the header: what clicking the button does, or what is happening.
-private struct UpdateSummaryView: View {
-  let app: App
-  let presentation: UpdateActionPresentation
-  let updating: any AppUpdating
-
-  var body: some View {
-    HStack(alignment: .firstTextBaseline, spacing: Space.sm) {
-      Image(systemName: symbol)
-        .foregroundStyle(tint)
-        .frame(width: 16)
-        .accessibilityHidden(true)
-      VStack(alignment: .leading, spacing: Space.sm) {
-        Text(sentence)
-          .fixedSize(horizontal: false, vertical: true)
-          .textSelection(.enabled)
-        if case .failed = presentation,
-          let permission = UpdateActionViewModel.missingPermission(for: app, updating: updating)
-        {
-          Button("Open \(permission.title) Settings") {
-            MacApplicationWorkspace.shared.open(permission.settingsURL)
-          }
-          .controlSize(.small)
-          .accessibilityLabel("Open System Settings for \(permission.title)")
-        }
-      }
-      .frame(maxWidth: .infinity, alignment: .leading)
-    }
-    .font(.body)
-    .padding(.horizontal, VisualMetrics.detailHeaderHorizontalPadding)
-    .padding(.vertical, Space.md)
-    .accessibilityElement(children: .combine)
-    .accessibilityIdentifier("detail.summary")
-  }
-
-  private var sentence: String {
-    switch presentation {
-    case .failed(let reason): "The last attempt didn't finish. \(reason)"
-    case .waiting(let status), .progress(_, let status, _): "\(status)…"
-    case .retryTermination:
-      "Waiting for \(app.name) to quit. Save your work in it, then click Retry Quit."
-    case .update, .open: app.updateExplanation
-    }
-  }
-
-  private var symbol: String {
-    switch presentation {
-    case .failed: return "exclamationmark.triangle.fill"
-    case .waiting, .progress, .retryTermination: return "arrow.down.circle"
-    case .update, .open:
-      if app.isActionable {
-        return app.capability.isAutomatic ? "arrow.down.circle.fill" : "arrow.up.forward.app"
-      }
-      return app.updateStatus == .current && !app.isUpdaterItself
-        ? "checkmark.circle.fill" : "info.circle"
-    }
-  }
-
-  private var tint: Color {
-    switch presentation {
-    case .failed: return Color(nsColor: .systemOrange)
-    case .update, .open:
-      if app.updateStatus == .current, !app.isUpdaterItself {
-        return Color(nsColor: .systemGreen)
-      }
-      return app.isActionable ? .accentColor : .secondary
-    case .waiting, .progress, .retryTermination: return .accentColor
-    }
-  }
-}
-
-/// Shown instead of release notes when there are none: versions, route, place and last result.
-private struct AppInfoPanel: View {
-  let app: App
-
-  var body: some View {
-    ScrollView {
-      Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 16, verticalSpacing: Space.md) {
-        row("Installed", app.localizedVersionInformation?.rawCurrent ?? "Unknown")
-        if app.availabilityUnknown {
-          row("Available", "Unknown, only \(app.externalUpdaterName ?? "the vendor") knows")
-        } else if app.updateAvailable, let new = app.localizedVersionInformation?.rawNew {
-          row("Available", new)
-        } else if case .needsNewerMacOS(let macOS) = app.updateStatus,
-          let new = app.localizedVersionInformation?.rawNew
-        {
-          row("Available", "\(new), needs macOS \(macOS)")
-        }
-        row("Updates via", app.isUpdaterItself ? "Not yet available" : app.sourceName)
-        row(
-          "Location",
-          (app.fileURL.deletingLastPathComponent().path as NSString)
-            .abbreviatingWithTildeInPath)
-      }
-      .font(.callout)
-      .padding(.horizontal, VisualMetrics.detailHeaderHorizontalPadding)
-      .padding(.vertical, Space.lg)
-      .frame(maxWidth: .infinity, alignment: .leading)
-    }
-    .accessibilityIdentifier("detail.info")
-  }
-
-  private func row(_ label: String, _ value: String) -> some View {
-    GridRow {
-      Text(label)
-        .foregroundStyle(.secondary)
-        .gridColumnAlignment(.trailing)
-      Text(value)
-        .textSelection(.enabled)
-        .lineLimit(2)
-        .truncationMode(.middle)
-    }
-    .accessibilityElement(children: .combine)
+    return current
   }
 }
 

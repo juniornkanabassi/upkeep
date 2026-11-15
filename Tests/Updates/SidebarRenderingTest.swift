@@ -357,6 +357,13 @@ final class SidebarRenderingTest: XCTestCase {
     let store = AppDataStore(userDefaults: defaults)
     let installed = makeTestApp(name: "Chrome", version: "154.0.8037.98")
     _ = store.set(appBundle: installed.bundle)
+    // Round 8: the Updates page lists only apps with an update, so start with one waiting.
+    _ = store.set(
+      .success(
+        App.Update(
+          app: installed.bundle, remoteVersion: Version(versionNumber: "155.0.8059.39", buildNumber: nil),
+          minimumOSVersion: nil, source: .appStore, date: installed.updateDate,
+          releaseNotes: nil, updateAction: .builtIn { _ in })), for: installed.bundle)
     let model = UpdatesListViewModel(
       snapshot: AppListSnapshot(withApps: store.apps, filterQuery: nil, settings: settings),
       settings: settings, appProvider: store)

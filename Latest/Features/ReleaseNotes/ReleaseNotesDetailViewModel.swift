@@ -81,6 +81,14 @@ final class ReleaseNotesDetailViewModel: ObservableObject {
     requestTask?.cancel()
   }
 
+  /// Loads the shown app's notes again after a failure.
+  func retry() {
+    let current = app
+    app = nil
+    displayedKey = nil
+    display(current)
+  }
+
   func display(_ app: App?, waitForSelectionToSettle: Bool = false) {
     let catalogRevision = ReleaseNotesSourceCatalog.revision
     guard self.app !== app || catalogRevision != selectionCatalogRevision else { return }

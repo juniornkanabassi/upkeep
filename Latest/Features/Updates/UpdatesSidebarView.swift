@@ -11,7 +11,9 @@
 import AppKit
 import SwiftUI
 
-struct UpdatesSidebarView: View {
+/// Hosts the window's toolbar search and its focus rules around a page's content. Without
+/// content it shows the native Updates list (component tests use it that way).
+struct UpdatesSidebarView<Content: View>: View {
   @ObservedObject var viewModel: UpdatesListViewModel
   @ObservedObject var searchFocusController: SearchFocusController
   @FocusState private var focus: SidebarFocus?
@@ -21,18 +23,24 @@ struct UpdatesSidebarView: View {
 
   private var activeFocus: FocusState<SidebarFocus?>.Binding { windowFocus ?? $focus }
 
-  init(viewModel: UpdatesListViewModel, searchFocusController: SearchFocusController) {
+  private let content: (FocusState<SidebarFocus?>.Binding) -> Content
+
+  init(
+    viewModel: UpdatesListViewModel, searchFocusController: SearchFocusController,
+    @ViewBuilder content: @escaping (FocusState<SidebarFocus?>.Binding) -> Content
+  ) {
     self.viewModel = viewModel
     self.searchFocusController = searchFocusController
+    self.content = content
   }
 
   var body: some View {
-    UpdatesScrollList(viewModel: viewModel, focus: activeFocus)
+    content(activeFocus)
       .searchable(
         text: Binding(get: { viewModel.searchQuery }, set: { viewModel.setSearchQuery($0) }),
         isPresented: $searchPresented,
-        placement: .sidebar,
-        prompt: "Search Apps"
+        placement: .toolbar,
+        prompt: viewModel.page.searchPrompt
       )
       .searchFocused(activeFocus, equals: .search)
       .onChange(of: searchFocusController.request, initial: true) { _, _ in
@@ -63,6 +71,14 @@ struct UpdatesSidebarView: View {
   private func restorePreviousFocus() {
     if searchFocusController.restorePreviousResponder() { return }
     activeFocus.wrappedValue = previousFocus
+  }
+}
+
+extension UpdatesSidebarView where Content == UpdatesScrollList {
+  init(viewModel: UpdatesListViewModel, searchFocusController: SearchFocusController) {
+    self.init(viewModel: viewModel, searchFocusController: searchFocusController) { focus in
+      UpdatesScrollList(viewModel: viewModel, focus: focus)
+    }
   }
 }
 
