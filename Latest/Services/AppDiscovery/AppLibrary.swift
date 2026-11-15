@@ -40,12 +40,16 @@ class AppLibrary: @unchecked Sendable {
     @Sendable (@escaping AppDirectoryUpdateHandler) -> any AppDirectoryStoring
   private let directoryStoreFactory: DirectoryStoreFactory
 
+  private let driverDiscovery: @Sendable ([App.Bundle]) -> [App.Bundle]
+
   init(
     directoryStoreFactory: @escaping DirectoryStoreFactory = {
       AppDirectoryStore(updateHandler: $0)
     },
+    driverDiscovery: @escaping @Sendable ([App.Bundle]) -> [App.Bundle] = { _ in [] },
     handler: @escaping UpdateHandler
   ) {
+    self.driverDiscovery = driverDiscovery
     self.directoryStoreFactory = directoryStoreFactory
     self.updateHandler = handler
   }
@@ -171,7 +175,8 @@ class AppLibrary: @unchecked Sendable {
   }
 
   private func currentBundles() -> [App.Bundle] {
-    directories.flatMap { $0.value.bundles }
+    let apps = directories.flatMap { $0.value.bundles }
+    return apps + driverDiscovery(apps)
   }
 
   // MARK: - Directory Handling

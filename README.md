@@ -200,7 +200,7 @@ Use `updater status <job> --wait 50` to await an update. `check` waits at most 5
 never cancels an already accepted update.
 
 `list` is compact by default; use `--full` for source details. `--kind app|driver|all`
-selects the item kind (driver discovery is supplied by the driver service in Round 8C).
+selects the item kind.
 `updater set <target> --ignore on|off` changes the same bundle-id preference as the GUI.
 MCP uses `configure {target, ignored}`, `list {updatesOnly, fields: "full"}` and
 `status {jobId, wait}`. There is no per-app automatic-update setting.
@@ -233,3 +233,23 @@ selected app bundle is included. Paths are revalidated before removal. Per-item
 results and `uninstall.log` record what happened; a removed app records `uninstalled`
 in history. Leftover matching is adapted from [Mole](https://github.com/tw93/Mole)
 (GPL-3.0-or-later). The GUI uninstall sheet is a later round.
+
+## Drivers and companion apps
+
+Discovery includes audio drivers in `/Library/Audio/Plug-Ins/HAL`, activated extension
+bundles in `/Library/SystemExtensions`, and legacy kernel extensions in
+`/Library/Extensions`. Driver rows include their vendor, path and parent where known.
+Extensions associated with a discovered host app use that app's version and say
+"Updates with" the host. Legacy kernel extensions have no automatic update route.
+Known helpers, uninstallers and SDK sample apps carry a `parent` in control output
+and cannot be updated independently.
+
+ARK's available version is the newest `arkinstaller` embedded in a discovered
+Rogue Amoeba app. Its update runs through the shared queue and one macOS administrator
+prompt. The privileged command validates a private copy of the installer against
+Rogue Amoeba's signature before running `install --silent`; success requires the
+installed driver's version to increase. Audio applications may briefly lose sound.
+Blackmagic Resolve and Desktop Video use Blackmagic's version catalogue and hand off
+to its download page. Desktop Video's drivers follow the package version; installation
+and macOS extension approval remain with the user. Edits' HTML consent response is
+reported explicitly instead of as a malformed feed.

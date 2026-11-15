@@ -353,6 +353,10 @@ final class ControlService {
     return .object(
       Self.compact([
         "name": .string(app.name), "bundleId": .string(app.bundleIdentifier),
+        "kind": .string(app.bundle.kind.rawValue),
+        "parent": JSONValue(app.bundle.parent),
+        "vendor": JSONValue(app.bundle.vendor),
+        "note": JSONValue(app.bundle.note),
         "path": .string(app.fileURL.path), "installed": JSONValue(Self.version(app.version)),
         "available": availability == "available" || availability == "current"
           ? JSONValue(app.remoteVersion.flatMap(Self.version)) : .null,

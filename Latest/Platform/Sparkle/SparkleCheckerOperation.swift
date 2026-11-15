@@ -47,6 +47,7 @@ final class SparkleUpdateCheckerOperation: NSObject, @unchecked Sendable {
   private let url: URL?
   private let resultGate = SparkleCheckResultGate()
   private let cancellationState = Mutex(false)
+  private let probingConsent = Mutex(false)
   @MainActor private var updater: SPUUpdater?
 
   init(with app: App.Bundle) {
@@ -61,6 +62,7 @@ final class SparkleUpdateCheckerOperation: NSObject, @unchecked Sendable {
     let timeoutTask = Task { [weak self] in
       try? await Task.sleep(nanoseconds: UInt64(Self.checkTimeout * 1_000_000_000))
       guard !Task.isCancelled else { return }
+      guard self?.probingConsent.withLock({ $0 }) != true else { return }
       self?.complete(.failure(URLError(.timedOut)))
     }
     defer {
@@ -91,6 +93,35 @@ final class SparkleUpdateCheckerOperation: NSObject, @unchecked Sendable {
     }
   }
 
+  static func isWebPage(data: Data, response: URLResponse) -> Bool {
+    if response.mimeType?.lowercased() == "text/html" { return true }
+    let prefix = String(decoding: data.prefix(1024), as: UTF8.self)
+      .trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    return prefix.hasPrefix("<!doctype html") || prefix.hasPrefix("<html")
+  }
+
+  static func consentProbeConfiguration() -> URLSessionConfiguration {
+    let configuration = URLSessionConfiguration.ephemeral
+    configuration.timeoutIntervalForRequest = checkTimeout
+    configuration.timeoutIntervalForResource = checkTimeout
+    return configuration
+  }
+
+  private static func feedAnswersWithWebPage(_ url: URL) async throws -> Bool {
+    var request = URLRequest(url: url)
+    request.timeoutInterval = checkTimeout
+    let session = URLSession(configuration: consentProbeConfiguration())
+    defer { session.invalidateAndCancel() }
+    let (bytes, response) = try await session.bytes(for: request)
+    if response.mimeType?.lowercased() == "text/html" { return true }
+    var prefix = Data()
+    for try await byte in bytes {
+      prefix.append(byte)
+      if prefix.count == 1024 { break }
+    }
+    return isWebPage(data: prefix, response: response)
+  }
+
   @MainActor
   private func startUpdater(for bundle: Bundle) throws {
     guard !cancellationState.withLock({ $0 }) else {
@@ -104,7 +135,21 @@ final class SparkleUpdateCheckerOperation: NSObject, @unchecked Sendable {
   }
 
   private func complete(_ result: Result<App.Update, Error>) {
-    Task { await resultGate.resume(with: result) }
+    let isParseFailure: Bool
+    if case .failure(let error) = result {
+      isParseFailure = (error as NSError).domain == SUSparkleErrorDomain
+        && (error as NSError).code == SUError.appcastParseError.rawValue
+    } else { isParseFailure = false }
+    if isParseFailure { probingConsent.withLock { $0 = true } }
+    Task {
+      if case .failure(let error) = result,
+        (error as NSError).domain == SUSparkleErrorDomain,
+        (error as NSError).code == SUError.appcastParseError.rawValue,
+        let url, (try? await Self.feedAnswersWithWebPage(url)) == true {
+        await resultGate.resume(with: .failure(
+          DriverSourceUnavailable(note: "Feed answers with a web page (consent).")))
+      } else { await resultGate.resume(with: result) }
+    }
   }
 
   private func finish(with appcastItem: SUAppcastItem) {

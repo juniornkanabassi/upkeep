@@ -16,6 +16,16 @@ extension App {
 
     typealias Identifier = URL
 
+    enum Kind: String, Sendable { case app, driver }
+
+    let kind: Kind
+    let parent: String?
+    let vendor: String?
+    let note: String?
+    let hostURL: URL?
+    let companionToolURL: URL?
+    let companionVersion: String?
+
     /// The version currently present on the users computer
     let version: Version
 
@@ -43,8 +53,17 @@ extension App {
       bundleIdentifier: String,
       fileURL: URL,
       source: Source,
-      modificationDate: Date? = nil
+      modificationDate: Date? = nil,
+      kind: Kind = .app, parent: String? = nil, vendor: String? = nil, note: String? = nil,
+      hostURL: URL? = nil, companionToolURL: URL? = nil, companionVersion: String? = nil
     ) {
+      self.kind = kind
+      self.parent = parent
+      self.vendor = vendor
+      self.note = note
+      self.hostURL = hostURL
+      self.companionToolURL = companionToolURL
+      self.companionVersion = companionVersion
       self.version = version
       self.name = name
       self.identifier = fileURL
@@ -63,6 +82,9 @@ extension App {
         && version.buildNumber == other.version.buildNumber
         && name == other.name && bundleIdentifier == other.bundleIdentifier
         && source == other.source && modificationDate == other.modificationDate
+        && kind == other.kind && parent == other.parent && vendor == other.vendor
+        && note == other.note && hostURL == other.hostURL
+        && companionToolURL == other.companionToolURL && companionVersion == other.companionVersion
     }
 
     private static func modificationDate(forBundleAt fileURL: URL) -> Date {

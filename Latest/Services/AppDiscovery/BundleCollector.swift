@@ -83,6 +83,9 @@ enum BundleCollector {
 
   /// Returns a single application bundle at the given URL.
   static func collectBundle(at url: URL) -> App.Bundle? {
+    if DriverDiscovery.extensions.contains(url.pathExtension) {
+      return DriverDiscovery.read(at: url)
+    }
     guard url.pathExtension == appExtension else { return nil }
     return cachedBundle(forAppAt: url)
   }
@@ -155,7 +158,8 @@ enum BundleCollector {
       bundleIdentifier: identifier,
       fileURL: url,
       source: source,
-      modificationDate: modificationDate
+      modificationDate: modificationDate,
+      parent: CompanionGrouping.parent(at: url, identifier: identifier)
     )
   }
 

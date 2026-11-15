@@ -97,6 +97,7 @@ extension App {
 extension App {
   /// The second line of a row and the menu bar: versions, or why there is none.
   var versionSummary: String {
+    if let parent = bundle.parent { return "Updates with \(parent)" }
     if availabilityUnknown, let vendor = externalUpdaterName { return "Check in \(vendor)" }
     guard let versions = localizedVersionInformation else { return "" }
     if updateAvailable, let new = versions.rawNew { return "\(versions.rawCurrent) → \(new)" }
@@ -105,6 +106,8 @@ extension App {
 
   /// The row's third line when nothing is running: where the update happens, in a few words.
   var routeShortDescription: String {
+    if let parent = bundle.parent { return "Updates with \(parent)" }
+    if bundle.kind == .driver && capability == .unsupported { return bundle.note ?? "No supported update source" }
     if isUpdaterItself { return "This app" }
     if isIgnored { return "Ignored" }
     if isSourcePending { return "Checking…" }
@@ -135,6 +138,14 @@ extension App {
 
   /// One sentence above the release notes saying exactly what clicking the button does.
   var updateExplanation: String {
+    if let error, bundle.kind == .driver { return error.localizedDescription }
+    if let parent = bundle.parent { return "Updates with \(parent)." }
+    if bundle.kind == .driver, capability == .unsupported {
+      return bundle.note ?? "No supported update source."
+    }
+    if bundle.kind == .driver, capability == .vendorTool {
+      return "Update runs ARK's installer with one macOS administrator prompt, then checks the driver version on disk. Audio apps may briefly lose sound."
+    }
     if isUpdaterItself { return "This is Updater. It can't update itself yet." }
     if isSourcePending { return "Checking for updates…" }
     if isActionable {
@@ -186,6 +197,9 @@ extension App {
   /// Who provides the version information, for "Updates via".
   var sourceName: String {
     switch source {
+    case .driver:
+      bundle.bundleIdentifier == "com.rogueamoeba.ARK.driver" && capability == .vendorTool
+        ? "ARK installer" : bundle.parent ?? "No independent update source"
     case .sparkle: "Sparkle"
     case .appStore: "App Store"
     case .homebrew: "Homebrew"
@@ -234,7 +248,8 @@ struct UpdateStatusSummary: Equatable {
 extension UpdateStatusSummary {
   @MainActor
   init(apps: [App]) {
-    for app in apps where !app.isIgnored && !app.isUpdaterItself {
+    for app in apps where !app.isIgnored && !app.isUpdaterItself && app.bundle.parent == nil
+      && !(app.bundle.kind == .driver && app.capability == .unsupported) {
       switch app.updateStatus {
       case .checking: break
       case .ready: ready += 1

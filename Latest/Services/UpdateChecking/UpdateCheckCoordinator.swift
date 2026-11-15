@@ -130,7 +130,7 @@ class UpdateCheckCoordinator: UpdateCheckCoordinating, @unchecked Sendable {
 
   /// The library containing all bundles loaded from disk.
   private lazy var library: AppLibrary = {
-    return AppLibrary { [weak self] bundles in
+    return AppLibrary(driverDiscovery: { DriverDiscovery.collect(apps: $0) }) { [weak self] bundles in
       self?.updateDiscoveredBundles(bundles)
     }
   }()
@@ -181,6 +181,10 @@ class UpdateCheckCoordinator: UpdateCheckCoordinating, @unchecked Sendable {
     CheckerDefinition(
       source: .sparkle,
       check: { bundle, _ in try await SparkleUpdateCheckerOperation(with: bundle).check() }
+    ),
+    CheckerDefinition(
+      source: .driver,
+      check: { bundle, _ in try await DriverUpdates.check(bundle) }
     ),
     CheckerDefinition(
       source: .none,
@@ -356,6 +360,10 @@ class UpdateCheckCoordinator: UpdateCheckCoordinating, @unchecked Sendable {
       guard !Task.isCancelled else { return }
 
       guard let self else { return }
+      if DriverDiscovery.extensions.contains(appIdentifier.pathExtension) {
+        self.library.reload { [weak self] bundles in self?.updateDiscoveredBundles(bundles) }
+        return
+      }
       // A failed attempt or rollback can leave the app missing; its failure stays in history.
       guard let bundle = BundleCollector.collectBundle(at: appIdentifier) else {
         self.updateCheckSchedulingLock.withLock { self.dataStore.remove(appAt: appIdentifier) }
@@ -425,6 +433,16 @@ extension UpdateCheckCoordinator {
     _ bundle: App.Bundle, repository: UpdateRepository?, homebrew: Homebrew?,
     vendors: VendorAdapters = .none
   ) async throws -> App.Update {
+    if bundle.kind == .app, bundle.parent != nil {
+      return App.Update(app: bundle, remoteVersion: bundle.version, minimumOSVersion: nil,
+        source: .vendor, date: nil, releaseNotes: nil,
+        updateAction: .external(label: "Updates with " + bundle.parent!) { _ in },
+        availabilityUnknown: true)
+    }
+    if bundle.kind == .driver { return try await DriverUpdates.check(bundle) }
+    if vendors.blackmagic, let update = try await BlackmagicCatalogue.update(for: bundle) {
+      return update
+    }
     if let vendor = try await vendors.update(for: bundle) { return vendor }
     if let owned = await HomebrewCheckerOperation.ownedUpdate(for: bundle, homebrew: homebrew) {
       return owned
@@ -447,7 +465,7 @@ extension UpdateCheckCoordinator {
       switch bundle.source {
       case .sparkle, .appStore:
         supported.append(bundle)
-      case .homebrew, .directDownload, .vendor, .none:
+      case .homebrew, .directDownload, .vendor, .driver, .none:
         fallback.append(bundle)
       }
     }
