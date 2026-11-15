@@ -678,6 +678,11 @@ final class ControlTest: XCTestCase {
       let response = try JSONDecoder().decode(ControlResponse.self, from: Data(cli.output.utf8))
       XCTAssertFalse(response.ok)
       XCTAssertEqual(response.code, "uninstall_failed")
+      if mode == "cancelled" {
+        XCTAssertEqual(response.message, "Nothing was removed. Untick the items that need your password to remove the rest without it.")
+        XCTAssertEqual(response.data?["adminItems"]?.arrayValue, [.string(app.fileURL.path)])
+        XCTAssertTrue(FileManager.default.fileExists(atPath: app.fileURL.path))
+      }
       XCTAssertTrue(results(response).contains { $0["status"] == "failed" && $0["message"] != nil })
       if mode == "partial" { XCTAssertTrue(results(response).contains { $0["status"] == "removed" }) }
 

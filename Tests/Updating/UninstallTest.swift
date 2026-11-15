@@ -95,6 +95,22 @@ final class UninstallTest: XCTestCase {
     XCTAssertTrue(result["results"]!.arrayValue!.allSatisfy { $0.objectValue?["status"] == "failed" })
   }
 
+  func testServiceStopFailurePreventsEveryMove() async throws {
+    let (root, app, planner) = try fixture()
+    try file(planner.home.appendingPathComponent("Library/LaunchAgents/com.example.clean.plist"))
+    var moves = 0
+    let service = UninstallService(planner: planner, history: nil, logURL: root.appendingPathComponent("log"),
+      trash: { _ in moves += 1 }, removeAdmin: { _, _ in XCTFail() },
+      bootout: { _, _ in throw CocoaError(.fileWriteNoPermission) })
+    let token = try XCTUnwrap(service.preview(app: app, withData: false, caller: "test")["token"]?.stringValue)
+    do {
+      _ = try await service.confirm(token: token, app: nil, withData: nil, caller: "test")
+      XCTFail("Service stop must succeed before moving files")
+    } catch {}
+    XCTAssertEqual(moves, 0)
+    XCTAssertTrue(FileManager.default.fileExists(atPath: app.path))
+  }
+
   func testPrivilegedShellRechecksRunningAfterPromptAndBeforeEachMove() throws {
     for startsAfterFirstMove in [false, true] {
       let (root, app, planner) = try fixture()
@@ -124,6 +140,67 @@ final class UninstallTest: XCTestCase {
     }
   }
 
+  func testCancelledOrDeniedAuthorizationLeavesEveryFileAndServiceUntouched() async throws {
+    for denied in [false, true] {
+      let (root, app, original) = try fixture()
+      let agent = original.home.appendingPathComponent("Library/LaunchAgents/com.example.clean.plist")
+      let cache = original.home.appendingPathComponent("Library/Caches/com.example.clean")
+      try file(agent)
+      try file(cache)
+      var planner = original
+      planner.uid = getuid() + 1
+      let plan = try planner.plan(app: app, withData: false)
+      let service = UninstallService(planner: planner, history: nil, logURL: root.appendingPathComponent("log"),
+        trash: { _ in XCTFail("No move before authorization") }, removeAdmin: { items, _ in
+          XCTAssertEqual(items, plan.items.filter(\.selected))
+          if denied { throw CocoaError(.fileWriteNoPermission) }
+          throw CancellationError()
+        }, bootout: { _, _ in XCTFail("No stop before authorization") })
+      let token = try XCTUnwrap(service.preview(app: app, withData: false, caller: "test")["token"]?.stringValue)
+      let outcome = try await service.confirm(token: token, app: nil, withData: nil, caller: "test")
+      XCTAssertEqual(outcome["ok"], .bool(false))
+      XCTAssertEqual(outcome["message"], "Nothing was removed. Untick the items that need your password to remove the rest without it.")
+      XCTAssertEqual(outcome["adminItems"]?.arrayValue?.count, plan.items.count)
+      for item in plan.items { try planner.validate(item) }
+      XCTAssertEqual(try Data(contentsOf: agent), Data("fixture".utf8))
+      XCTAssertEqual(try Data(contentsOf: cache), Data("fixture".utf8))
+      XCTAssertFalse(FileManager.default.fileExists(atPath: service.logURL.path))
+    }
+  }
+
+  func testAuthorizationThenAllServiceStopsThenMoves() async throws {
+    let (root, app, original) = try fixture()
+    try file(original.home.appendingPathComponent("Library/LaunchAgents/com.example.clean.plist"))
+    try file(original.systemLibrary.appendingPathComponent("LaunchDaemons/com.example.clean.plist"))
+    var planner = original
+    planner.uid = getuid() + 1
+    let events = root.appendingPathComponent("events")
+    let trash = root.appendingPathComponent("trash")
+    let stop = root.appendingPathComponent("stop")
+    try file(stop, data: Data(("#!/bin/sh\nprintf 'stop\\n' >> '" + events.path + "'\n").utf8))
+    try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: stop.path)
+    let move = root.appendingPathComponent("move")
+    try file(move, data: Data(("#!/bin/sh\nprintf 'move\\n' >> '" + events.path + "'\n/bin/mv \"$@\"\n").utf8))
+    try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: move.path)
+    let service = UninstallService(planner: planner, history: nil, logURL: root.appendingPathComponent("log"),
+      trash: { _ in XCTFail() }, removeAdmin: { items, target in
+        try Data("authorise\n".utf8).write(to: events)
+        let script = UninstallService.administratorShell(items, target: target, trash: trash)
+          .replacingOccurrences(of: "/bin/launchctl", with: stop.path)
+          .replacingOccurrences(of: "/bin/mv", with: move.path)
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/sh")
+        process.arguments = ["-c", script]
+        try process.run(); process.waitUntilExit()
+        XCTAssertEqual(process.terminationStatus, 0)
+      }, bootout: { _, _ in XCTFail() })
+    let token = try XCTUnwrap(service.preview(app: app, withData: false, caller: "test")["token"]?.stringValue)
+    let outcome = try await service.confirm(token: token, app: nil, withData: nil, caller: "test")
+    XCTAssertEqual(outcome["ok"], .bool(true))
+    XCTAssertEqual(try String(contentsOf: events, encoding: .utf8).split(separator: "\n"),
+      ["authorise", "stop", "stop", "move", "move", "move"])
+  }
+
   func testAdministratorFailureRetainsPartialItemDetails() async throws {
     for removedCount in 0...2 {
       let (root, app, original) = try fixture()
@@ -136,7 +213,7 @@ final class UninstallTest: XCTestCase {
           for (index, item) in items.sorted(by: { $0.kind != .app && $1.kind == .app }).prefix(removedCount).enumerated() {
             try FileManager.default.moveItem(atPath: item.path, toPath: root.appendingPathComponent("moved-\(index)").path)
           }
-          throw CancellationError()
+          throw CocoaError(.fileWriteNoPermission)
         })
       let token = try XCTUnwrap(service.preview(app: app, withData: false, caller: "test")["token"]?.stringValue)
       let outcome = try await service.confirm(token: token, app: nil, withData: nil, caller: "test")

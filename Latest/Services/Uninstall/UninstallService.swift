@@ -86,44 +86,47 @@ final class UninstallService {
       result($0, "skipped", "Personal data was not selected.")
     }
     let admin = selected.filter(\.needsAdmin)
-    // Admin moves come first; cancelling the single prompt cannot remove the app first.
+    var adminFailed = false
     if !admin.isEmpty {
-      do {
-        for item in admin { try planner.validate(item) }
-        try await removeAdmin(admin, target)
-        for item in admin {
-          let gone = !FileManager.default.fileExists(atPath: item.path)
-          results.append(result(item, gone ? "removed" : "failed", gone ? nil : "Still present after the administrator operation."))
-        }
-      } catch {
-        for item in admin {
-          let gone = !FileManager.default.fileExists(atPath: item.path)
-          results.append(result(item, gone ? "removed" : "failed", gone ? nil : error.localizedDescription))
-        }
-        for item in selected.sorted(by: { $0.kind != .app && $1.kind == .app }) where !item.needsAdmin { results.append(result(item, "skipped", "Administrator operation failed or was cancelled.")) }
-        try appendLog(results, run: token)
-        var failed = outcome(results)
-        failed["ok"] = .bool(false)
-        return failed
+      // The single prompt gates the whole plan, including user-owned services and files.
+      var failure: Error?
+      do { try await removeAdmin(selected, target) } catch { failure = error; adminFailed = true }
+      let removed = selected.filter { !FileManager.default.fileExists(atPath: $0.path) }
+      if failure != nil && removed.isEmpty {
+        let message = "Nothing was removed. Untick the items that need your password to remove the rest without it."
+        for item in selected { results.append(result(item, "failed", message)) }
+        return ["ok": .bool(false), "message": .string(message),
+          "adminItems": .array(admin.map { .string($0.path) }),
+          "results": .array(results.map(JSONValue.object))]
       }
-    }
-    for item in selected.sorted(by: { $0.kind != .app && $1.kind == .app }) where !item.needsAdmin {
-      do {
-        guard !planner.isRunning(target), !isUpdating(target) else { throw ControlError("busy", "The app started running or updating.") }
+      for item in selected {
+        let gone = !FileManager.default.fileExists(atPath: item.path)
+        results.append(result(item, gone ? "removed" : "failed",
+          gone ? nil : (failure?.localizedDescription ?? "Still present after the administrator operation.")))
+      }
+    } else {
+      // Stop every service before moving anything, including the app it belongs to.
+      for item in selected where item.kind == .launchAgent {
         try planner.validate(item)
-        let url = URL(fileURLWithPath: item.path)
-        if item.kind == .launchAgent { try await bootout(url, false); try planner.validate(item) }
-        guard !planner.isRunning(target), !isUpdating(target) else { throw ControlError("busy", "The app started running or updating.") }
-        try trash(url)
-        guard !FileManager.default.fileExists(atPath: item.path) else { throw ControlError("trash_failed", "The item is still present.") }
-        results.append(result(item, "removed", nil))
-      } catch { results.append(result(item, "failed", error.localizedDescription)) }
+        try await bootout(URL(fileURLWithPath: item.path), false)
+      }
+      for item in selected.sorted(by: { $0.kind != .app && $1.kind == .app }) {
+        do {
+          guard !planner.isRunning(target), !isUpdating(target) else { throw ControlError("busy", "The app started running or updating.") }
+          try planner.validate(item)
+          try trash(URL(fileURLWithPath: item.path))
+          guard !FileManager.default.fileExists(atPath: item.path) else { throw ControlError("trash_failed", "The item is still present.") }
+          results.append(result(item, "removed", nil))
+        } catch { results.append(result(item, "failed", error.localizedDescription)) }
+      }
     }
     try appendLog(results, run: token)
     if let before, results.contains(where: { $0["path"] == .string(target.path) && $0["status"] == "removed" }) {
       history?.record(UpdateHistoryEntry(before: before, after: nil, outcome: .uninstalled))
     }
-    return outcome(results)
+    var completed = outcome(results)
+    if adminFailed { completed["ok"] = .bool(false) }
+    return completed
   }
 
   private func outcome(_ results: [[String: JSONValue]]) -> [String: JSONValue] {
@@ -172,10 +175,9 @@ final class UninstallService {
     guard let homePath else { throw ControlError("unsafe_trash", "Cannot resolve the home folder.") }
     defer { free(homePath) }
     let trash = URL(fileURLWithPath: String(cString: homePath)).appendingPathComponent(".Trash")
-    if !FileManager.default.fileExists(atPath: trash.path) {
-      try FileManager.default.createDirectory(at: trash, withIntermediateDirectories: false)
+    guard UninstallPlanner.safePath(trash.deletingLastPathComponent(), under: trash.deletingLastPathComponent().deletingLastPathComponent()) else {
+      throw ControlError("unsafe_trash", "The Bin parent path is unsafe.")
     }
-    guard UninstallPlanner.safePath(trash, under: trash.deletingLastPathComponent()) else { throw ControlError("unsafe_trash", "The Bin path is unsafe.") }
     let shell = administratorShell(items, target: target, trash: trash)
     let literal = shell.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"").replacingOccurrences(of: "\n", with: "\\n")
     _ = try await InstallerCommand.run("/usr/bin/osascript", ["-e", "do shell script \"\(literal)\" with administrator privileges"], cancellable: false)
@@ -202,11 +204,13 @@ final class UninstallService {
       for part in item.path.split(separator: "/") { path += "/" + part; commands.append("[ ! -L \(q(path)) ]") }
     }
     commands.append("[ ! -L \(q(trash.path)) ]")
+    commands.append("if [ ! -d \(q(trash.path)) ]; then /usr/bin/install -d -o \(getuid()) -g \(getgid()) -m 700 \(q(trash.path)); fi")
+    for item in items where item.kind == .launchAgent {
+      let domain = item.path.contains("/LaunchDaemons/") ? "system" : "gui/\(getuid())"
+      commands.append("/bin/launchctl bootout \(q(domain)) \(q(item.path)) 2>/dev/null || [ $? = 3 ]")
+    }
+    commands.append("failed=0")
     for item in items.sorted(by: { $0.kind != .app && $1.kind == .app }) {
-      if item.kind == .launchAgent {
-        let domain = item.path.contains("/LaunchDaemons/") ? "system" : "gui/\(getuid())"
-        commands.append("/bin/launchctl bootout \(q(domain)) \(q(item.path)) 2>/dev/null || [ $? = 3 ]")
-      }
       let destination = trash.appendingPathComponent(UUID().uuidString + "-" + URL(fileURLWithPath: item.path).lastPathComponent).path
       let expected = "\(item.device):\(item.inode):\(item.modified):\(item.changed)"
       commands.append("[ \"$(/usr/bin/stat -f '%d:%i:%m:%c' \(q(item.path)))\" = \(q(expected)) ]")
@@ -214,8 +218,9 @@ final class UninstallService {
         commands.append("[ \"$(/usr/bin/shasum -a 256 \(q(item.path + "/Contents/Info.plist")) | /usr/bin/cut -d ' ' -f 1)\" = \(q(hash)) ]")
       }
       commands.append("app_not_running")
-      commands.append("/bin/mv -n \(q(item.path)) \(q(destination))")
+      commands.append("/bin/mv -n \(q(item.path)) \(q(destination)) || failed=1")
     }
+    commands.append("exit $failed")
     return commands.joined(separator: "\n")
   }
 }

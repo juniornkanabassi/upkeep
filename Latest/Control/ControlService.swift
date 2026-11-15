@@ -231,7 +231,7 @@ final class ControlService {
       }
       if data["ok"] == .bool(false) {
         return ControlResponse(ok: false, code: "uninstall_failed",
-          message: "Some selected items could not be removed. See the per-item results.", data: data)
+          message: data["message"]?.stringValue ?? "Some selected items could not be removed. See the per-item results.", data: data)
       }
       return ControlResponse(ok: true, data: data)
     } catch let error as ControlError { return .failure(error.code, error.message) }

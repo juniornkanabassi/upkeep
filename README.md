@@ -227,7 +227,10 @@ approval_mode = "prompt"
 ```
 
 Files go to the Bin, never permanent deletion. Root-owned items use one macOS
-administrator prompt. Running apps, Updater, Apple system apps and apps in
+administrator prompt before any service is stopped or file is moved. Cancelling
+or denying it leaves all items in place and returns the items needing admin rights.
+Services are stopped before any files move; individual file failures are reported
+per item. Running apps, Updater, Apple system apps and apps in
 `/Applications/JuniorOS Apps` are refused. With another installed copy, only the
 selected app bundle is included. Paths are revalidated before removal. Per-item
 results and `uninstall.log` record what happened; a removed app records `uninstalled`
