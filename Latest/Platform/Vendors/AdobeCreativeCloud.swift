@@ -91,7 +91,9 @@ struct AdobeCreativeCloud: Sendable {
     let written =
       (try? FileManager.default.attributesOfItem(atPath: appsPanelPrefs.path))?[.modificationDate]
       as? Date ?? .distantPast
-    return now.timeIntervalSince(written) < Self.freshness ? newest : nil
+    // Current: report the installed version itself, since an offer without a build number
+    // cannot be compared with an installed build (Lightroom 10.0 showed "cannot be compared").
+    return now.timeIntervalSince(written) < Self.freshness ? bundle.version : nil
   }
 
   /// Creative Cloud rewrites its Apps panel record each time it refreshes (several times a

@@ -804,12 +804,13 @@ final class VendorAdaptersTest: XCTestCase {
     var adobe = AdobeCreativeCloud(database: database, app: ccApp, appsPanelPrefs: prefs)
     adobe.open = { _ in }
 
-    func check(_ folder: String, _ name: String, _ identifier: String, _ version: String)
-      async throws -> App
-    {
+    func check(
+      _ folder: String, _ name: String, _ identifier: String, _ version: String,
+      build: String? = nil
+    ) async throws -> App {
       let url = try FixtureApp.make(
         in: root.appendingPathComponent(folder), name: name, identifier: identifier,
-        version: version)
+        version: version, extraInfo: build.map { ["CFBundleVersion": $0] } ?? [:])
       let bundle = try XCTUnwrap(BundleCollector.collectBundle(at: url))
       let update = try await VendorAdapters(adobe: adobe).update(for: bundle)
       return App(bundle: bundle, update: update.map { .success($0) }, isIgnored: false)
@@ -835,6 +836,12 @@ final class VendorAdaptersTest: XCTestCase {
     let lightroom = try await check(
       "Adobe Lightroom CC", "Adobe Lightroom", "com.adobe.lightroomCC", "10.0")
     XCTAssertTrue(lightroom.updateAvailable, "non-yearly apps take any newer offer")
+
+    let currentLightroom = try await check(
+      "Adobe Lightroom CC again", "Adobe Lightroom", "com.adobe.lightroomCC", "10.1",
+      build: "2026.11")
+    XCTAssertFalse(currentLightroom.availabilityUnknown, "same version, different build: current")
+    XCTAssertFalse(currentLightroom.updateAvailable)
 
     let audition = try await check(
       "Adobe Audition 2027", "Adobe Audition 2027", "com.adobe.Audition", "27.0.0")
