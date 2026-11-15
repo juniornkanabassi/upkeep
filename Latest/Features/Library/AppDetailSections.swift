@@ -242,17 +242,23 @@ struct AppDetailSections: View {
       Grid(
         alignment: .leadingFirstTextBaseline, horizontalSpacing: Space.lg, verticalSpacing: Space.sm
       ) {
-        row("Installed", app.localizedVersionInformation?.rawCurrent ?? "Unknown")
+        // Drivers say where each version came from (screen 09).
+        let current = app.localizedVersionInformation?.rawCurrent ?? "Unknown"
+        row(
+          "Installed",
+          app.bundle.kind == .driver ? "\(current), \(app.installedProvenance)" : current)
         if app.availabilityUnknown {
           row("Available", "Unknown, only \(app.externalUpdaterName ?? "the vendor") knows")
         } else if app.updateAvailable, let new = app.localizedVersionInformation?.rawNew {
-          row("Available", new)
+          row("Available", app.availableProvenance.map { "\(new), \($0)" } ?? new)
         } else if case .needsNewerMacOS(let macOS) = app.updateStatus,
           let new = app.localizedVersionInformation?.rawNew
         {
           row("Available", "\(new), needs macOS \(macOS)")
         }
-        row("Checked with", app.isUpdaterItself ? "Not yet available" : app.sourceName)
+        if app.bundle.kind != .driver {
+          row("Checked with", app.isUpdaterItself ? "Not yet available" : app.sourceName)
+        }
         if app.updateAvailable {
           row(
             "Installed by",
@@ -354,5 +360,39 @@ struct ReleaseNotesSection: View {
       }
     }
     .accessibilityIdentifier("detail.notes")
+  }
+}
+
+extension App {
+  /// Where a driver's installed version was read.
+  var installedProvenance: String {
+    if bundle.vendor == "Blackmagic Design", bundle.parent != nil {
+      return "from the \(bundle.parent!) install record on this Mac"
+    }
+    if let host = bundle.hostURL {
+      return "from \(host.deletingPathExtension().lastPathComponent) on this Mac"
+    }
+    return "from the driver on this Mac"
+  }
+
+  /// Where a driver's available version came from, or nil when there is no source.
+  var availableProvenance: String? {
+    guard bundle.kind == .driver else { return nil }
+    if let tool = bundle.companionToolURL {
+      // …/SoundSource.app/Contents/Resources/arkinstaller
+      let app = tool.deletingLastPathComponent().deletingLastPathComponent()
+        .deletingLastPathComponent()
+      return "from the ARK installer inside \(app.deletingPathExtension().lastPathComponent)"
+    }
+    if bundle.vendor == "Blackmagic Design" {
+      let date =
+        latestUpdateDate.map { ", \($0.formatted(.dateTime.day().month(.abbreviated).year()))" }
+        ?? ""
+      return "from Blackmagic's online download list" + date
+    }
+    if let host = bundle.hostURL {
+      return "from \(host.deletingPathExtension().lastPathComponent)'s own update check"
+    }
+    return nil
   }
 }

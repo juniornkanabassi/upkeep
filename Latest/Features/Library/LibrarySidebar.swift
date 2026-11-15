@@ -104,23 +104,49 @@ struct StopJobButton: View {
   let updating: any AppUpdating
 
   var body: some View {
-    let stoppable = JobStep.isStoppable(updating.state(for: app.identifier))
-    Button {
-      updating.cancel(app)
-    } label: {
+    StopCapsule(
+      enabled: JobStep.isStoppable(updating.state(for: app.identifier)), identifier: "job.stop"
+    ) { updating.cancel(app) }
+  }
+}
+
+/// The one control that cancels an update, everywhere: it says Stop, never a pause glyph.
+struct StopCapsule: View {
+  let enabled: Bool
+  var identifier = "job.stop"
+  var status: String? = nil
+  var controlSize = ControlSize.small
+  let action: () -> Void
+
+  var body: some View {
+    Button(action: action) {
       Label("Stop", systemImage: "stop.circle.fill")
+        .labelStyle(.titleAndIcon)
     }
     .buttonStyle(.bordered)
     .buttonBorderShape(.capsule)
-    .controlSize(.small)
-    .disabled(!stoppable)
+    .controlSize(controlSize)
+    .fixedSize()  // never squeezed to an unlabelled icon
+    .disabled(!enabled)
     .help(
-      stoppable
-        ? "Stop this update. Nothing changes."
-        : "Stop isn't available while the app is being replaced."
+      [
+        status,
+        enabled
+          ? "Stop this update. Nothing changes."
+          : "Stop isn't available while the app is being replaced.",
+      ]
+      .compactMap { $0 }.joined(separator: ". ")
     )
-    .accessibilityIdentifier("job.stop")
+    .accessibilityLabel("Stop")
+    .accessibilityValue(status ?? "")
+    .accessibilityHint(enabled ? "Cancel update" : "")
+    .accessibilityIdentifier(identifier)
   }
+}
+
+extension EnvironmentValues {
+  /// A narrow window: row buttons are hidden (the detail pane keeps the actions).
+  @Entry var compactLayout = false
 }
 
 extension UpdateActionPresentation {

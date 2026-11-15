@@ -26,7 +26,6 @@ struct UpdatesScrollList: View {
         set: { viewModel.select($0, isKeyboardSelection: NSApp.currentEvent?.type == .keyDown) }
       )
     ) {
-      if let note = PageNote.top(viewModel) { note }
       ForEach(viewModel.pageSections) { group in
         Section {
           ForEach(group.apps, id: \.identifier) { app in
@@ -43,7 +42,18 @@ struct UpdatesScrollList: View {
           UpdateSectionHeaderView(section: group.section)
         }
       }
-      if let note = PageNote.bottom(viewModel) { note }
+    }
+    // Outside the table: its rows have fixed heights, and these notes must wrap in full.
+    .safeAreaInset(edge: .top, spacing: 0) {
+      if let note = PageNote.top(viewModel) {
+        note.padding(.horizontal, Space.md).padding(.top, Space.sm)
+      }
+    }
+    .safeAreaInset(edge: .bottom, spacing: 0) {
+      if let note = PageNote.bottom(viewModel) {
+        note.frame(maxWidth: .infinity, alignment: .leading)
+          .padding(.horizontal, Space.lg).padding(.bottom, Space.md)
+      }
     }
     .listStyle(.sidebar)
     .background(SidebarScrollConfiguration())

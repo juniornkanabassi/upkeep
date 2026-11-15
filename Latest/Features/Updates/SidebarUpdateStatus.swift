@@ -52,9 +52,12 @@ struct SidebarUpdateStatus: View {
   let selection: UpdateRowSelection
   let updating: any AppUpdating
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  @Environment(\.compactLayout) private var compact
 
   var body: some View {
     switch presentation {
+    case .update where compact:
+      EmptyView()
     case .update:
       Button(SidebarUpdateActionTitle.shortText(for: app)) { updating.update(app) }
         .buttonStyle(.bordered)
@@ -102,48 +105,13 @@ struct SidebarUpdateStatus: View {
       .frame(width: 24, height: 24)
       .help(status)
       .accessibilityLabel(status)
-    case .progress(let fraction, let status, let cancellable):
-      Button {
-        updating.cancel(app)
-      } label: {
-        Color.clear
+    case .progress(_, let status, let cancellable):
+      if !compact {
+        StopCapsule(enabled: cancellable, identifier: "updates.progress", status: status) {
+          updating.cancel(app)
+        }
       }
-      .buttonStyle(
-        SidebarProgressButtonStyle(
-          fraction: fraction, selection: selection, cancellable: cancellable)
-      )
-      .disabled(!cancellable)
-      .help(status)
-      .accessibilityLabel(status)
-      .accessibilityHint(cancellable ? "Cancel update" : "")
-      .accessibilityIdentifier("updates.progress")
     }
-  }
-}
-
-private struct SidebarProgressButtonStyle: ButtonStyle {
-  let fraction: Double?
-  let selection: UpdateRowSelection
-  let cancellable: Bool
-  @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-  func makeBody(configuration: Configuration) -> some View {
-    let color: NSColor =
-      selection.usesActiveSelectionColors
-      ? .alternateSelectedControlTextColor : .controlAccentColor
-    TimelineView(.animation(paused: fraction != nil || reduceMotion)) { context in
-      SidebarIndicatorGlyph(
-        fraction: fraction,
-        angle: fraction == nil && !reduceMotion
-          ? context.date.timeIntervalSinceReferenceDate
-            .truncatingRemainder(dividingBy: 1) * 360 : -90,
-        tint: Color(nsColor: configuration.isPressed ? color.withSystemEffect(.pressed) : color),
-        cancellable: cancellable
-      )
-    }
-    .frame(width: 24, height: 24)
-    .contentShape(Rectangle())
-    .animation(reduceMotion ? nil : .linear(duration: 0.2), value: fraction)
   }
 }
 
@@ -152,7 +120,6 @@ private struct SidebarIndicatorGlyph: View, Animatable {
   var fraction: Double?
   let angle: Double
   let tint: Color
-  var cancellable = true
   @Environment(\.displayScale) private var displayScale
   @Environment(\.self) private var environment
 
@@ -181,15 +148,6 @@ private struct SidebarIndicatorGlyph: View, Animatable {
             .cgPath)
           cg.strokePath()
           cg.setFillColor(resolvedTint)
-          if cancellable {
-            for offset in [-2.0, 2.0] {
-              cg.addPath(
-                SidebarIndicatorPaths.pauseMark(
-                  at: CGPoint(x: center.x + offset, y: center.y)
-                ).cgPath)
-              cg.fillPath()
-            }
-          }
           guard fraction > 0 else { return }
         }
         cg.setLineCap(.round)
@@ -211,36 +169,6 @@ enum SidebarIndicatorPaths {
     arc(
       center: CGPoint(x: rect.midX, y: rect.midY),
       radii: CGSize(width: rect.width / 2, height: rect.height / 2), angle: -45, sweep: 360)
-  }
-
-  static func pauseMark(at center: CGPoint) -> Path {
-    let path = CGMutablePath()
-    let x = center.x
-    let y = center.y
-    // The original rounded rectangle uses this five-decimal cubic coefficient.
-    let curve = 0.55228
-    path.move(to: CGPoint(x: x, y: y + 4))
-    path.addCurve(
-      to: CGPoint(x: x - 1, y: y + 3),
-      control1: CGPoint(x: x - curve, y: y + 4),
-      control2: CGPoint(x: x - 1, y: y + 3 + curve))
-    path.addLine(to: CGPoint(x: x - 1, y: y - 3))
-    path.addCurve(
-      to: CGPoint(x: x, y: y - 4),
-      control1: CGPoint(x: x - 1, y: y - 3 - curve),
-      control2: CGPoint(x: x - curve, y: y - 4))
-    path.addLine(to: CGPoint(x: x, y: y - 4))
-    path.addCurve(
-      to: CGPoint(x: x + 1, y: y - 3),
-      control1: CGPoint(x: x + curve, y: y - 4),
-      control2: CGPoint(x: x + 1, y: y - 3 - curve))
-    path.addLine(to: CGPoint(x: x + 1, y: y + 3))
-    path.addCurve(
-      to: CGPoint(x: x, y: y + 4),
-      control1: CGPoint(x: x + 1, y: y + 3 + curve),
-      control2: CGPoint(x: x + curve, y: y + 4))
-    path.closeSubpath()
-    return Path(path)
   }
 
   static func arc(center: CGPoint, radii: CGSize, angle: Double, sweep: Double) -> Path {

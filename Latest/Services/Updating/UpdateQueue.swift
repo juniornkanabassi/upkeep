@@ -233,6 +233,10 @@ class UpdateQueue: OperationQueue, @unchecked Sendable {
   func submit(_ operation: UpdateOperation) -> UpdateOperation {
     if let existing = index(operation) { return existing }
     if !ExternalHandOff.allowed { operation.allowsExternalHandOff = false }
+    if let policy = AutomaticUpdatePolicy.current {
+      operation.automaticPolicy = policy
+      if let owner = operation as? AppLifecycleOwning { owner.lifecycle = owner.lifecycle.automatic(policy) }
+    }
     let before = readBundle(operation.appIdentifier)
 
     operation.resolveOutcome = { [weak self] operation in
@@ -433,6 +437,17 @@ class UpdateQueue: OperationQueue, @unchecked Sendable {
   // MARK: - Helper
 
   /// Returns the operation for the given app.
+  /// Withdraws an automatic job for this app (Ignore or Update automatically switched off).
+  /// Jobs a person or agent asked for are left alone; a job past its commit point finishes.
+  @discardableResult
+  func withdrawAutomaticJob(for identifier: App.Bundle.Identifier) -> Bool {
+    guard let operation = operation(for: identifier), operation.automaticPolicy != nil else {
+      return false
+    }
+    operation.cancel()
+    return true
+  }
+
   private func operation(for identifier: App.Bundle.Identifier) -> UpdateOperation? {
     operationIndexLock.withLock {
       guard let operation = operationsByIdentifier[identifier] else {

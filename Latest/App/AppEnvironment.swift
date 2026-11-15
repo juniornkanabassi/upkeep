@@ -80,6 +80,9 @@ final class AppEnvironment: ObservableObject {
         setIgnoredState: { [coordinator] in coordinator.appProvider.setIgnoredState($0, for: $1) },
         history: .shared)
     self.uninstall = .live(updating: updating, history: .shared)
+    self.preferences.withdrawAutomatic = { [updating] in
+      updating.withdrawAutomaticJob(for: $0.identifier)
+    }
     self.searchFocusController = searchFocusController
     self.coordinator = coordinator
     self.updating = updating
@@ -158,7 +161,12 @@ final class AppEnvironment: ObservableObject {
     let candidates = preferences.autoUpdateCandidates(
       in: apps, eligible: updateCheckingService.updateCandidates(from:),
       isRunning: { !AppLifecycle.live.runningApps($0).isEmpty })
-    updateCheckingService.updateAutomatically(candidates)
+    let provider = coordinator.appProvider as? AppDataStore
+    updateCheckingService.updateAutomatically(candidates) { [preferences] app in
+      preferences.policy(for: app) {
+        provider?.apps.first { $0.identifier == app.identifier }?.isIgnored ?? true
+      }
+    }
   }
 
   func stop() {

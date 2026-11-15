@@ -15,6 +15,14 @@ OLD="$INSTALL_ROOT/Updater.app"  # the same app before the rename (0.10.x and ea
 (( $# <= 1 )) || { print -u2 "Usage: zsh install.sh [path/to/Upkeep.app]"; exit 2; }
 [[ -d "$SOURCE_APP" ]] || { print -u2 "No built app at $SOURCE_APP. Run build.sh first."; exit 1; }
 [[ "$(/usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' "$SOURCE_APP/Contents/Info.plist")" == "$APP_ID" ]] || { print -u2 "Not an Upkeep build."; exit 1; }
+# Only Upkeep builds: a build from before the rename has Contents/MacOS/Updater and
+# Helpers/updater, which this script would install under the new name with broken CLI links.
+# Rolling back to a pre-rename build is not supported; checked before anything changes.
+if [[ ! -x "$SOURCE_APP/Contents/MacOS/Upkeep" || ! -x "$SOURCE_APP/Contents/Helpers/upkeep" ]]; then
+  print -u2 "$SOURCE_APP is not an Upkeep build (it needs Contents/MacOS/Upkeep and Contents/Helpers/upkeep)."
+  print -u2 "Builds from before the rename to Upkeep (0.11.0) can't be installed with this script. Nothing was changed."
+  exit 1
+fi
 TEAM="M6L2VW4W5Z"
 # Junior's Apple-anchored signature on app and helper; an ad-hoc build would break the install helper.
 verify_signed() {

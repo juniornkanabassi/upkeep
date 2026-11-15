@@ -554,3 +554,5 @@ extension SSDownloadMetadata {
     dictionary?["app-receipt"] as? Data
   }
 }
+
+extension AppStoreUpdateOperation: AppLifecycleOwning {}

@@ -1,7 +1,9 @@
 // Copyright © 2026 Junior Nkana Bassi. Licensed under GPL-3.0; see LICENSE.md.
 
+import AppKit
 import Combine
 import Foundation
+import Synchronization
 
 /// Per-app switches shared by the window, the CLI and MCP: Update automatically (per copy, by
 /// path, off by default) and Ignore updates (the existing per-bundle-id preference). Each
@@ -27,6 +29,10 @@ final class AppPreferences: ObservableObject {
   // shortcut: the "Turned on by" notes live for this launch only; History keeps the record.
   @Published private(set) var changes = [String: Change]()
 
+  /// A copy of the switched-on paths that queued jobs can read from any thread.
+  private let mirror = PathMirror()
+  /// Cancels a queued automatic job for the app (the scheduler leaves other jobs alone).
+  var withdrawAutomatic: (App) -> Void = { _ in }
   private let defaults: UserDefaults
   private let setIgnoredState: (Bool, App) -> Void
   private let history: UpdateHistoryStore?
@@ -40,6 +46,7 @@ final class AppPreferences: ObservableObject {
     self.setIgnoredState = setIgnoredState
     self.history = history
     autoUpdatePaths = Set(defaults.stringArray(forKey: Self.autoUpdateKey) ?? [])
+    mirror.paths.withLock { [autoUpdatePaths] in $0 = autoUpdatePaths }
   }
 
   /// Only apps Upkeep installs itself can update automatically.
@@ -80,6 +87,8 @@ final class AppPreferences: ObservableObject {
         changes[Self.key(.autoUpdate, app)] = nil
       }
     }
+    // Switching either off withdraws an automatic job that has not reached its install step.
+    if (setting == .ignore && on) || (setting == .autoUpdate && !on) { withdrawAutomatic(app) }
     guard previous != on else { return }
     changes[Self.key(setting, app)] = Change(
       caller: caller, date: now(), on: on, previous: previous)
@@ -104,12 +113,35 @@ final class AppPreferences: ObservableObject {
     eligible(apps.filter(autoUpdates)).filter { !isRunning($0.fileURL) }
   }
 
+  /// What an automatic job re-checks before it starts and right before it installs.
+  /// `isIgnored` and `isRunning` must be safe from any thread.
+  func policy(
+    for app: App, isIgnored: @escaping @Sendable () -> Bool,
+    isRunning: @escaping @Sendable (URL) -> Bool = AppPreferences.isRunning
+  ) -> AutomaticUpdatePolicy {
+    let mirror = mirror, path = app.fileURL.path, url = app.fileURL
+    return AutomaticUpdatePolicy {
+      mirror.paths.withLock { $0.contains(path) } && !isIgnored() && !isRunning(url)
+    }
+  }
+
+  nonisolated static func isRunning(_ url: URL) -> Bool {
+    NSWorkspace.shared.runningApplications.contains {
+      $0.bundleURL?.standardizedFileURL == url.standardizedFileURL
+    }
+  }
+
   private func store(_ on: Bool, path: String) {
     if on { autoUpdatePaths.insert(path) } else { autoUpdatePaths.remove(path) }
+    mirror.paths.withLock { [autoUpdatePaths] in $0 = autoUpdatePaths }
     defaults.set(autoUpdatePaths.sorted(), forKey: Self.autoUpdateKey)
   }
 
   private static func key(_ setting: Setting, _ app: App) -> String {
     setting.rawValue + ":" + app.fileURL.path
   }
+}
+
+private final class PathMirror: Sendable {
+  let paths = Mutex<Set<String>>([])
 }

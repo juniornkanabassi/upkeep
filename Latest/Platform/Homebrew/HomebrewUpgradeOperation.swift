@@ -149,3 +149,5 @@ final class HomebrewUpgradeOperation: UpdateOperation, @unchecked Sendable {
     Task { @MainActor in self.protection.reopenIfQuit(self.lifecycle) }
   }
 }
+
+extension HomebrewUpgradeOperation: AppLifecycleOwning {}

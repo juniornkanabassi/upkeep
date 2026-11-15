@@ -171,7 +171,15 @@ final class UninstallTest: XCTestCase {
       let token = try XCTUnwrap(service.preview(app: app, withData: false, caller: "test")["token"]?.stringValue)
       let outcome = try await service.confirm(token: token, app: nil, withData: nil, caller: "test")
       XCTAssertEqual(outcome["ok"], .bool(false))
-      XCTAssertEqual(outcome["message"], "Nothing was removed. Untick the items that need your password to remove the rest without it.")
+      // A cancelled prompt and a failed administrator step are told apart, with the reason.
+      XCTAssertEqual(outcome["authorizationCancelled"], .bool(!denied))
+      if denied {
+        XCTAssertEqual(
+          outcome["message"]?.stringValue,
+          "Nothing was removed. The administrator step failed: " + CocoaError(.fileWriteNoPermission).localizedDescription)
+      } else {
+        XCTAssertEqual(outcome["message"], "Nothing was removed. Untick the items that need your password to remove the rest without it.")
+      }
       XCTAssertEqual(outcome["adminItems"]?.arrayValue?.count, plan.items.count)
       for item in plan.items { try planner.validate(item) }
       XCTAssertEqual(try Data(contentsOf: agent), Data("fixture".utf8))
@@ -323,5 +331,20 @@ final class UninstallTest: XCTestCase {
     let kept = result["results"]?.arrayValue?.compactMap(\.objectValue).first { $0["path"]?.stringValue == app.path }
     XCTAssertEqual(kept?["status"], "skipped")
     XCTAssertTrue(FileManager.default.fileExists(atPath: app.path))
+  }
+
+  /// Review 5: a cancelled password prompt and a failed administrator step read differently.
+  func testSheetNoteSeparatesCancelledAuthorisationFromFailures() {
+    let outcome = UninstallSheetModel.Outcome(path: "/x", removed: false, message: "item message")
+    XCTAssertTrue(
+      UninstallSheetModel.note(
+        for: ["authorizationCancelled": .bool(true), "message": "service"], outcomes: [outcome],
+        needsPassword: true
+      ).contains("password request was cancelled"))
+    XCTAssertEqual(
+      UninstallSheetModel.note(
+        for: ["authorizationCancelled": .bool(false), "message": "Nothing was removed. The administrator step failed: disk full"],
+        outcomes: [outcome], needsPassword: true),
+      "Nothing was removed. The administrator step failed: disk full")
   }
 }

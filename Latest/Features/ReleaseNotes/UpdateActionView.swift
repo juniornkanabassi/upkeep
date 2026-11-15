@@ -110,8 +110,6 @@ struct UpdateActionSurface: View {
 enum UpdateActionVisualStyle {
   static let progressDiameter: CGFloat = 20
   static let progressLineWidth: CGFloat = 2.5
-  static let pauseBarSize = CGSize(width: 2, height: 8)
-  static let pauseBarSpacing: CGFloat = 2
 }
 
 /// The button names exactly what happens: "Update" only when Updater installs it itself,
@@ -158,19 +156,10 @@ private struct UpdateActionControl: View {
       UpdateActionIndeterminateIndicator()
         .help(status)
         .accessibilityLabel(status)
-    case .progress(let fraction, let status, let cancellable):
-      Button {
-        performAction()
-      } label: {
-        UpdateActionProgressIndicator(fraction: fraction, cancellable: cancellable)
-          .contentShape(Rectangle())
-      }
-      .buttonStyle(.plain)
-      .disabled(!cancellable)
-      .help(status)
-      .accessibilityLabel(status)
-      .accessibilityHint(cancellable ? "Cancel update" : "")
-      .accessibilityIdentifier("update.progress")
+    case .progress(_, let status, let cancellable):
+      StopCapsule(
+        enabled: cancellable, identifier: "update.progress", status: status,
+        controlSize: .regular, action: performAction)
     case .failed:
       Button("Retry", action: performAction)
         .buttonStyle(.bordered)
@@ -207,55 +196,6 @@ private struct UpdateActionIndeterminateIndicator: View {
             reduceMotion
               ? 90 : context.date.timeIntervalSinceReferenceDate * 360
           ))
-    }
-    .frame(
-      width: UpdateActionVisualStyle.progressDiameter,
-      height: UpdateActionVisualStyle.progressDiameter
-    )
-  }
-}
-
-private struct UpdateActionProgressIndicator: View {
-  let fraction: Double?
-  let cancellable: Bool
-  @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-  var body: some View {
-    TimelineView(.animation(paused: fraction != nil || reduceMotion)) { context in
-      ZStack {
-        Circle()
-          .stroke(
-            Color(nsColor: .tertiaryLabelColor),
-            lineWidth: UpdateActionVisualStyle.progressLineWidth
-          )
-        Circle()
-          .trim(from: 0, to: fraction ?? 0.25)
-          .stroke(
-            Color(nsColor: .controlAccentColor),
-            style: StrokeStyle(
-              lineWidth: UpdateActionVisualStyle.progressLineWidth,
-              lineCap: .round
-            )
-          )
-          .rotationEffect(
-            .degrees(
-              fraction == nil && !reduceMotion
-                ? context.date.timeIntervalSinceReferenceDate
-                  .truncatingRemainder(dividingBy: 1) * 360 : -90))
-
-        if cancellable {
-          HStack(spacing: UpdateActionVisualStyle.pauseBarSpacing) {
-            ForEach(0..<2, id: \.self) { _ in
-              RoundedRectangle(cornerRadius: 1)
-                .fill(Color(nsColor: .controlAccentColor))
-                .frame(
-                  width: UpdateActionVisualStyle.pauseBarSize.width,
-                  height: UpdateActionVisualStyle.pauseBarSize.height
-                )
-            }
-          }
-        }
-      }
     }
     .frame(
       width: UpdateActionVisualStyle.progressDiameter,

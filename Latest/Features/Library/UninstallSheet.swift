@@ -1,5 +1,6 @@
 // Copyright © 2026 Junior Nkana Bassi. Licensed under GPL-3.0; see LICENSE.md.
 
+import AppKit
 import Combine
 import SwiftUI
 
@@ -72,15 +73,18 @@ final class UninstallSheetModel: ObservableObject {
     }
   }
 
-  func confirm() async {
+  /// `only` narrows the run to these paths (Try Again for items that stayed).
+  func confirm(only: Set<String>? = nil) async {
     guard let service, !ticked.isEmpty else { return }
     phase = .working
     note = nil
     do {
       // A fresh token each time: tokens are single use, and the plan is checked again.
       let plan = try preview(service)
-      let keep = Set(
-        Self.groups(plan.items).filter { !ticked.contains($0.id) }.flatMap(\.items).map(\.path))
+      let keep =
+        only.map { only in Set(plan.items.map(\.path).filter { !only.contains($0) }) }
+        ?? Set(
+          Self.groups(plan.items).filter { !ticked.contains($0.id) }.flatMap(\.items).map(\.path))
       let token = plan.token
       let data = try await service.confirm(
         token: token, app: nil, withData: nil, caller: "gui", excluding: keep)
@@ -93,11 +97,7 @@ final class UninstallSheetModel: ObservableObject {
           message: result["message"]?.stringValue)
       }
       if !outcomes.isEmpty, !outcomes.contains(where: \.removed) {
-        // The password request was cancelled or refused: nothing moved.
-        note =
-          needsPassword
-          ? "Nothing was removed, because the password request was cancelled. Untick Background helper to remove the rest without your password."
-          : (outcomes.first?.message ?? "Nothing was removed.")
+        note = Self.note(for: data, outcomes: outcomes, needsPassword: needsPassword)
         expanded.formUnion(groups.filter(\.needsAdmin).map(\.id))
         phase = .ready
         return
@@ -126,6 +126,21 @@ final class UninstallSheetModel: ObservableObject {
     }
     return Plan(items: plan.items, token: token)
   }
+
+  /// Why nothing moved: a cancelled password prompt, or the reason the service returned.
+  static func note(for data: [String: JSONValue], outcomes: [Outcome], needsPassword: Bool)
+    -> String
+  {
+    if data["authorizationCancelled"] == .bool(true), needsPassword {
+      return
+        "Nothing was removed, because the password request was cancelled. Untick Background helper to remove the rest without your password."
+    }
+    return data["message"]?.stringValue ?? outcomes.first?.message ?? "Nothing was removed."
+  }
+
+  /// Retrying needs a fresh preview, which needs the app; once it is in the Bin, leftovers
+  /// are cleared by hand from Finder.
+  var canRetry: Bool { FileManager.default.fileExists(atPath: app.fileURL.path) }
 
   private static func message(_ error: Error) -> String {
     (error as? ControlError)?.message ?? error.localizedDescription
@@ -234,11 +249,11 @@ struct UninstallSheet: View {
     .task { if model.phase == .loading { model.load() } }
   }
 
-  private func header(subtitle: String) -> some View {
+  private func header(title: String? = nil, subtitle: String) -> some View {
     HStack(alignment: .top, spacing: Space.lg) {
       AppIconView(app: model.app, size: 48)
       VStack(alignment: .leading, spacing: Space.xs) {
-        Text("Uninstall \(model.app.name)?").font(.title3.weight(.semibold))
+        Text(title ?? "Uninstall \(model.app.name)?").font(.title3.weight(.semibold))
         Text(subtitle).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
       }
     }
@@ -296,38 +311,82 @@ struct UninstallSheet: View {
 
   private func result(_ outcomes: [UninstallSheetModel.Outcome]) -> some View {
     let failed = outcomes.filter { !$0.removed }
-    let moved = outcomes.filter(\.removed)
+    let byPath = Dictionary(outcomes.map { ($0.path, $0) }, uniquingKeysWith: { first, _ in first })
     return VStack(alignment: .leading, spacing: 0) {
       header(
+        title: failed.isEmpty
+          ? "\(model.app.name) is uninstalled"
+          : "\(model.app.name) is uninstalled, with \(LibraryContent.count(failed.count, "file")) left",
         subtitle: failed.isEmpty
-          ? "\(LibraryContent.count(moved.count, "item")) moved to the Bin. They can be put back from there."
-          : "\(LibraryContent.count(moved.count, "item")) moved to the Bin. \(LibraryContent.count(failed.count, "item")) stayed where \(failed.count == 1 ? "it was" : "they were")."
-      )
+          ? "Everything you chose is in the Bin, and can be put back from there."
+          : (failed.first?.message ?? "Some files stayed where they were."))
       ScrollView {
-        VStack(alignment: .leading, spacing: Space.sm) {
-          ForEach(outcomes) { outcome in
-            HStack(alignment: .firstTextBaseline, spacing: Space.sm) {
-              Image(systemName: outcome.removed ? "checkmark.circle" : "exclamationmark.circle")
-                .foregroundStyle(
-                  outcome.removed ? Color(nsColor: .systemGreen) : Color(nsColor: .systemOrange))
-              VStack(alignment: .leading, spacing: 2) {
-                Text((outcome.path as NSString).abbreviatingWithTildeInPath)
-                  .font(.callout.monospaced()).fixedSize(horizontal: false, vertical: true)
-                if let message = outcome.message, !outcome.removed {
-                  Text(message).font(.callout).foregroundStyle(.secondary)
-                }
-              }
-            }
-            .accessibilityElement(children: .combine)
+        VStack(spacing: 0) {
+          ForEach(Array(model.groups.enumerated()), id: \.element.id) { index, group in
+            if index > 0 { Divider() }
+            resultRow(group, outcomes: group.items.compactMap { byPath[$0.path] })
           }
         }
+        .overlay(RoundedRectangle(cornerRadius: Space.md).strokeBorder(.quaternary))
         .padding(.horizontal, Space.xxl)
+        Text("The exact paths are logged in Upkeep's uninstall log.")
+          .font(.callout).foregroundStyle(.secondary)
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .padding(.horizontal, Space.xxl).padding(.top, Space.sm)
       }
       footer {
+        Button("Show in Bin") {
+          NSWorkspace.shared.open(
+            FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".Trash"))
+        }
+        .buttonStyle(.link)
         Spacer()
-        Button("Done", action: dismiss).keyboardShortcut(.defaultAction)
+        if !failed.isEmpty, model.canRetry {
+          Button(failed.count == 1 ? "Try Locked File Again" : "Try \(failed.count) Files Again") {
+            Task { await model.confirm(only: Set(failed.map(\.path))) }
+          }
+        }
+        Button("Done", action: dismiss).keyboardShortcut(.defaultAction).buttonStyle(
+          .borderedProminent)
       }
     }
+  }
+
+  /// One line per group: moved, moved except some, or kept as chosen.
+  private func resultRow(
+    _ group: UninstallSheetModel.Group, outcomes: [UninstallSheetModel.Outcome]
+  )
+    -> some View
+  {
+    let stayed = outcomes.filter { !$0.removed }.count
+    let kept = outcomes.isEmpty
+    let (symbol, tint, detail): (String, Color, String) =
+      kept
+      ? ("circle", .secondary, "Kept, as you chose")
+      : stayed == 0
+        ? (
+          "checkmark.circle", Color(nsColor: .systemGreen),
+          group.id == "helper"
+            ? "Stopped and removed. Its files are in the Bin" : "Moved to the Bin"
+        )
+        : (
+          "exclamationmark.circle", Color(nsColor: .systemOrange),
+          stayed == outcomes.count
+            ? "Stayed where it was"
+            : "Moved to the Bin, except \(LibraryContent.count(stayed, "file"))"
+        )
+    return HStack(spacing: Space.md) {
+      Image(systemName: symbol).foregroundStyle(tint).accessibilityHidden(true)
+      VStack(alignment: .leading, spacing: 2) {
+        Text(group.title)
+        Text(detail).font(.callout).foregroundStyle(.secondary)
+      }
+      .frame(maxWidth: .infinity, alignment: .leading)
+      Text(Self.size(group.size)).foregroundStyle(.secondary).monospacedDigit()
+    }
+    .padding(.horizontal, Space.lg)
+    .padding(.vertical, Space.sm)
+    .accessibilityElement(children: .combine)
   }
 
   private func footer<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {

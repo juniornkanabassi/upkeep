@@ -1,5 +1,6 @@
 // Copyright © 2026 Junior Nkana Bassi. Licensed under GPL-3.0; see LICENSE.md.
 
+import Synchronization
 import XCTest
 
 @testable import Latest
@@ -173,6 +174,116 @@ final class AutoUpdateTest: XCTestCase {
     let usage = await service.handle(
       ControlRequest(command: "set", args: ["target": apps[0].fileURL.path], caller: "cli-1"))
     XCTAssertEqual(usage.code, "usage")
+  }
+}
+
+// MARK: - Automatic jobs re-check before acting (review 1)
+
+extension AutoUpdateTest {
+  private func probe(_ name: String) -> ProbeOperation {
+    ProbeOperation(
+      bundleIdentifier: "test.auto.\(name)",
+      appIdentifier: FileManager.default.temporaryDirectory.appendingPathComponent(
+        "Probe-\(name)-\(UUID()).app"))
+  }
+
+  private func waitUntilFinished(_ operation: Operation) async {
+    for _ in 0..<200 where !operation.isFinished { try? await Task.sleep(for: .milliseconds(10)) }
+  }
+
+  func testAutomaticJobThatIsNoLongerEligibleNeverStarts() async {
+    let queue = UpdateQueue(history: UpdateHistoryStore(fileURL: historyURL))
+    let stale = probe("Stale")
+    let fresh = probe("Fresh")
+    AutomaticUpdatePolicy.$current.withValue(AutomaticUpdatePolicy { false }) {
+      _ = queue.submit(stale)
+    }
+    AutomaticUpdatePolicy.$current.withValue(AutomaticUpdatePolicy { true }) {
+      _ = queue.submit(fresh)
+    }
+    await waitUntilFinished(stale)
+    await waitUntilFinished(fresh)
+    XCTAssertFalse(stale.executed, "opened, ignored or switched off since it was queued")
+    XCTAssertTrue(stale.isCancelled)
+    XCTAssertTrue(fresh.executed)
+    XCTAssertNotNil(fresh.automaticPolicy, "the policy stays on the job")
+  }
+
+  func testAutomaticLifecycleDeclinesARunningAppWithoutAsking() async {
+    final class Flags: @unchecked Sendable {
+      var asked = false, terminated = false, installed = false
+    }
+    let flags = Flags()
+    let lifecycle = AppLifecycle(
+      runningApps: { _ in [.init(terminate: { flags.terminated = true }, isTerminated: { false })]
+      },
+      confirmQuit: { _ in
+        flags.asked = true
+        return true
+      }, reopen: { _ in })
+    let automatic = lifecycle.automatic(AutomaticUpdatePolicy { true })
+    do {
+      try await automatic.withApplicationClosed(at: URL(fileURLWithPath: "/tmp/X.app"), name: "X") {
+        flags.installed = true
+      }
+      XCTFail("an automatic job must not quit a running app")
+    } catch {}
+    XCTAssertFalse(flags.asked, "no quit prompt for automatic updates")
+    XCTAssertFalse(flags.terminated)
+    XCTAssertFalse(flags.installed)
+    // Ineligible right before installing (ignored or switched off) stops even when closed.
+    let closed = AppLifecycle(
+      runningApps: { _ in [] }, confirmQuit: { _ in true }, reopen: { _ in }
+    )
+    .automatic(AutomaticUpdatePolicy { false })
+    do {
+      _ = try await closed.quit(at: URL(fileURLWithPath: "/tmp/X.app"), name: "X")
+      XCTFail("ineligible job must stop")
+    } catch {}
+  }
+
+  func testSwitchingOffWithdrawsOnlyAutomaticJobs() async throws {
+    let queue = UpdateQueue(history: UpdateHistoryStore(fileURL: historyURL))
+    queue.isSuspended = true
+    let automatic = probe("Auto")
+    let asked = probe("Asked")
+    AutomaticUpdatePolicy.$current.withValue(AutomaticUpdatePolicy { true }) {
+      _ = queue.submit(automatic)
+    }
+    _ = queue.submit(asked)
+    XCTAssertTrue(queue.withdrawAutomaticJob(for: automatic.appIdentifier))
+    XCTAssertFalse(queue.withdrawAutomaticJob(for: asked.appIdentifier), "a requested job stays")
+    XCTAssertTrue(automatic.isCancelled)
+    XCTAssertFalse(asked.isCancelled)
+    queue.isSuspended = false
+    await waitUntilFinished(asked)
+    XCTAssertTrue(asked.executed)
+    XCTAssertFalse(automatic.executed)
+
+    let prefs = preferences()
+    var withdrawn = [String]()
+    prefs.withdrawAutomatic = { withdrawn.append($0.name) }
+    let chrome = app("Chrome")
+    let notion = app("Notion")
+    try prefs.set(.autoUpdate, true, for: chrome, caller: "gui")
+    try prefs.set(.autoUpdate, true, for: notion, caller: "gui")
+    let policy = prefs.policy(for: notion, isIgnored: { false }, isRunning: { _ in false })
+    XCTAssertTrue(policy.stillEligible())
+    try prefs.set(.ignore, true, for: chrome, caller: "gui")
+    try prefs.set(.autoUpdate, false, for: notion, caller: "gui")
+    XCTAssertEqual(withdrawn, ["Chrome", "Notion"])
+    XCTAssertFalse(policy.stillEligible(), "switched off after queueing")
+    XCTAssertFalse(
+      prefs.policy(for: chrome, isIgnored: { true }, isRunning: { _ in false }).stillEligible())
+  }
+}
+
+private final class ProbeOperation: UpdateOperation, @unchecked Sendable {
+  private let ran = Mutex(false)
+  var executed: Bool { ran.withLock { $0 } }
+  override func execute() {
+    ran.withLock { $0 = true }
+    finish()
   }
 }
 

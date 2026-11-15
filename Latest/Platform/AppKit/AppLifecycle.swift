@@ -16,6 +16,8 @@ struct AppLifecycle: Sendable {
   var confirmQuit: @MainActor @Sendable (_ appName: String) -> Bool
   var reopen: @MainActor @Sendable (URL) -> Void
   var timeout: Duration = .seconds(20)
+  /// Checked right before quitting or installing; false stops the job with nothing changed.
+  var mayProceed: @MainActor @Sendable () -> Bool = { true }
   /// Launches the app and returns once macOS has, or throws its error.
   var launch: @MainActor @Sendable (URL) async throws -> Void = { url in
     _ = try await NSWorkspace.shared.openApplication(
@@ -52,6 +54,7 @@ struct AppLifecycle: Sendable {
     at url: URL, name: String, _ install: @Sendable () async throws -> Void
   ) async throws {
     try Task.checkCancellation()
+    guard mayProceed() else { throw CancellationError() }
     let running = runningApps(url)
     if !running.isEmpty, !confirmQuit(name) { throw CancellationError() }
     try await ApplicationQuitLifecycle.run(
@@ -67,11 +70,21 @@ struct AppLifecycle: Sendable {
 }
 
 extension AppLifecycle {
+  /// An automatic update never asks to quit a running app, and stops unless it is still
+  /// eligible (closed, not ignored, automatic updates still on) right before installing.
+  func automatic(_ policy: AutomaticUpdatePolicy) -> AppLifecycle {
+    var copy = self
+    copy.confirmQuit = { _ in false }
+    copy.mayProceed = { policy.stillEligible() }
+    return copy
+  }
+
   /// Quits the app for an installer that relaunches it itself (Sparkle). Throws if the
   /// user declines or the app is still open at the timeout. Never force-kills.
   /// Returns whether the app was running, so the caller can reopen it afterwards.
   @MainActor @discardableResult
   func quit(at url: URL, name: String) async throws -> Bool {
+    guard mayProceed() else { throw CancellationError() }
     let running = runningApps(url)
     guard !running.isEmpty else { return false }
     guard confirmQuit(name) else { throw CancellationError() }

@@ -34,7 +34,34 @@ struct UpdatesSidebarView<Content: View>: View {
     self.content = content
   }
 
+  @Environment(\.compactLayout) private var compact
+  /// In a narrow window search is a toolbar button until it is used (screen 12).
+  @State private var searchExpanded = false
+
   var body: some View {
+    if compact && !searchExpanded && viewModel.searchQuery.isEmpty
+      && !searchFocusController.hasPendingRequest
+    {
+      content(activeFocus)
+        .toolbar {
+          ToolbarItem(placement: .primaryAction) {
+            Button {
+              searchExpanded = true
+              searchPresented = true
+            } label: {
+              Label(viewModel.page.searchPrompt, systemImage: "magnifyingglass")
+            }
+            .labelStyle(.iconOnly)
+            .help(viewModel.page.searchPrompt)
+            .accessibilityIdentifier("toolbar.search")
+          }
+        }
+    } else {
+      searchableContent
+    }
+  }
+
+  private var searchableContent: some View {
     content(activeFocus)
       .searchable(
         text: Binding(get: { viewModel.searchQuery }, set: { viewModel.setSearchQuery($0) }),
@@ -45,6 +72,7 @@ struct UpdatesSidebarView<Content: View>: View {
       .searchFocused(activeFocus, equals: .search)
       .onChange(of: searchFocusController.request, initial: true) { _, _ in
         if searchFocusController.consumeRequest() {
+          searchExpanded = true
           searchPresented = true
           activeFocus.wrappedValue = .search
         }
@@ -65,7 +93,10 @@ struct UpdatesSidebarView<Content: View>: View {
       }
       .onChange(of: activeFocus.wrappedValue) { _, new in
         if let new, new != .search { previousFocus = new }
+        // An empty compact search folds back to its button once focus leaves it.
+        if new != .search, viewModel.searchQuery.isEmpty { searchExpanded = false }
       }
+      .onAppear { if searchExpanded { activeFocus.wrappedValue = .search } }
   }
 
   private func restorePreviousFocus() {

@@ -88,6 +88,7 @@ class StatefulOperation: Operation, @unchecked Sendable {
     // NSOperation.start() contains important logic that shouldn't be bypassed.
     super.start()
 
+    if !self.isCancelled, !shouldStart() { cancel() }
     // If the operation has been cancelled, we still need to enter the "Finished" state.
     if !self.isCancelled {
       self.state = .executing
@@ -107,6 +108,9 @@ class StatefulOperation: Operation, @unchecked Sendable {
    methods defined below; this is how you indicate that your operation has
    finished its execution.
    */
+  /// Checked as the operation is dequeued; false cancels it before it does anything.
+  func shouldStart() -> Bool { true }
+
   func execute() {
     fatalError("\(type(of: self)) must override `execute()`.")
   }

@@ -266,7 +266,8 @@ extension SparkleUpdateOperation: SPUUserDriver {
     // A running target is quit by Updater first, with a time limit. Sparkle's own
     // terminate request waits without end, so a refusal would leave the job pending
     // and the install deferred to whenever the app later quits.
-    if !lifecycle.runningApps(appIdentifier).isEmpty {
+    // An automatic job is re-checked here too, running or not.
+    if !lifecycle.runningApps(appIdentifier).isEmpty || automaticPolicy != nil {
       Task { @MainActor in
         do {
           protection.noteQuit(
@@ -357,3 +358,5 @@ extension SparkleUpdateOperation: SPUUpdaterDelegate {
   }
 
 }
+
+extension SparkleUpdateOperation: AppLifecycleOwning {}

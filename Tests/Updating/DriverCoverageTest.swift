@@ -232,4 +232,26 @@ final class DriverCoverageTest: XCTestCase {
     XCTAssertTrue(SparkleUpdateCheckerOperation.isWebPage(data: Data(" <!DOCTYPE html>".utf8), response: response))
     XCTAssertFalse(SparkleUpdateCheckerOperation.isWebPage(data: Data("<?xml version=\"1.0\"?><rss/>".utf8), response: response))
   }
+
+  /// Screen 09: driver details say where each version came from.
+  @MainActor
+  func testDriverVersionProvenance() {
+    func driver(_ vendor: String?, parent: String? = nil, host: URL? = nil, tool: URL? = nil) -> App {
+      let bundle = App.Bundle(
+        version: Version(versionNumber: "16.4", buildNumber: nil), name: "Driver",
+        bundleIdentifier: "test.driver", fileURL: URL(fileURLWithPath: "/Library/Extensions/D.kext"),
+        source: .driver, modificationDate: Date(timeIntervalSince1970: 0), kind: .driver,
+        parent: parent, vendor: vendor, hostURL: host, companionToolURL: tool)
+      return App(bundle: bundle, update: nil, isIgnored: false)
+    }
+    let blackmagic = driver("Blackmagic Design", parent: "Blackmagic Desktop Video")
+    XCTAssertEqual(blackmagic.installedProvenance, "from the Blackmagic Desktop Video install record on this Mac")
+    XCTAssertEqual(blackmagic.availableProvenance, "from Blackmagic's online download list")
+    let ark = driver("Rogue Amoeba", tool: URL(fileURLWithPath: "/Applications/SoundSource.app/Contents/Resources/arkinstaller"))
+    XCTAssertEqual(ark.availableProvenance, "from the ARK installer inside SoundSource")
+    XCTAssertEqual(ark.installedProvenance, "from the driver on this Mac")
+    let hosted = driver(nil, host: URL(fileURLWithPath: "/Applications/Camera Hub.app"))
+    XCTAssertEqual(hosted.installedProvenance, "from Camera Hub on this Mac")
+    XCTAssertNil(driver(nil).availableProvenance, "no update source, nothing claimed")
+  }
 }

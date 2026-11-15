@@ -273,3 +273,5 @@ final class BoundedDownloadDelegate: NSObject, URLSessionDownloadDelegate, Senda
     continuation?.resume(with: result)
   }
 }
+
+extension DownloadUpdateOperation: AppLifecycleOwning {}

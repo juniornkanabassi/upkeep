@@ -95,10 +95,17 @@ final class UninstallService {
       var failure: Error?
       do { try await removeAdmin(selected, target) } catch { failure = error; adminFailed = true }
       let removed = selected.filter { !FileManager.default.fileExists(atPath: $0.path) }
-      if failure != nil && removed.isEmpty {
-        let message = "Nothing was removed. Untick the items that need your password to remove the rest without it."
+      if let failure, removed.isEmpty {
+        // A cancelled password prompt and a failed administrator step read differently.
+        let cancelled = Self.isAuthorizationCancelled(failure)
+        let message =
+          cancelled
+          ? "Nothing was removed. Untick the items that need your password to remove the rest without it."
+          : "Nothing was removed. The administrator step failed: \(failure.localizedDescription)"
         for item in selected { results.append(result(item, "failed", message)) }
         return ["ok": .bool(false), "message": .string(message),
+          "authorizationCancelled": .bool(cancelled),
+          "reason": .string(failure.localizedDescription),
           "adminItems": .array(admin.map { .string($0.path) }),
           "results": .array(results.map(JSONValue.object))]
       }
@@ -133,6 +140,14 @@ final class UninstallService {
   }
 
   static let notSelected = "Not selected, so it stays."
+
+  /// The system password prompt was cancelled (osascript reports error -128).
+  nonisolated static func isAuthorizationCancelled(_ error: Error) -> Bool {
+    if error is CancellationError { return true }
+    let text = error.localizedDescription
+    return text.contains("(-128)") || text.localizedCaseInsensitiveContains("user canceled")
+      || text.localizedCaseInsensitiveContains("user cancelled")
+  }
 
   private func outcome(_ results: [[String: JSONValue]]) -> [String: JSONValue] {
     // Unselected personal data is expected; failed or skipped selected items are not success.

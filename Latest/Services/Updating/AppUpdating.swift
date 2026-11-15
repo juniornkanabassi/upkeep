@@ -23,6 +23,8 @@ protocol AppUpdating: AnyObject, Sendable {
   func jobID(for identifier: App.Bundle.Identifier) -> String?
   /// Any job by id, running or recently finished, whoever started it.
   func job(withID id: String) -> UpdateJob?
+  /// Cancels an automatic job for this app; jobs someone asked for are left alone.
+  func withdrawAutomaticJob(for identifier: App.Bundle.Identifier)
 }
 
 extension AppUpdating {
@@ -31,6 +33,7 @@ extension AppUpdating {
   func update(_ app: App) { update(app, isBulkUpdate: false) }
   func jobID(for identifier: App.Bundle.Identifier) -> String? { nil }
   func job(withID id: String) -> UpdateJob? { nil }
+  func withdrawAutomaticJob(for identifier: App.Bundle.Identifier) {}
 }
 
 /// The live adapter owns the queue dependency. Domain models contain only update
@@ -46,6 +49,9 @@ final class AppUpdateService: AppUpdating {
   func isUpdating(_ app: App) -> Bool { queue.contains(app.identifier) }
   func jobID(for identifier: App.Bundle.Identifier) -> String? { queue.jobID(for: identifier) }
   func job(withID id: String) -> UpdateJob? { queue.job(withID: id) }
+  func withdrawAutomaticJob(for identifier: App.Bundle.Identifier) {
+    queue.withdrawAutomaticJob(for: identifier)
+  }
   /// The single entry point for GUI rows and Update All. Built-in actions submit to the
   /// scheduler; hand-offs open another updater and are recorded as such.
   func update(_ app: App, isBulkUpdate: Bool) {

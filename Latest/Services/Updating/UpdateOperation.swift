@@ -22,6 +22,19 @@ enum ExternalHandOff {
   @TaskLocal static var allowed = true
 }
 
+/// Set while Upkeep submits an automatic update; kept on the job. `stillEligible` is safe from
+/// any thread and says whether the app is still closed, not ignored and switched on.
+struct AutomaticUpdatePolicy: Sendable {
+  let stillEligible: @Sendable () -> Bool
+  @TaskLocal static var current: AutomaticUpdatePolicy?
+}
+
+/// Installers that quit apps through the shared lifecycle, so an automatic job can make it
+/// decline instead of asking.
+protocol AppLifecycleOwning: AnyObject {
+  var lifecycle: AppLifecycle { get set }
+}
+
 /// The abstract update operation used for updating apps.
 class UpdateOperation: StatefulOperation, @unchecked Sendable {
 
@@ -42,6 +55,18 @@ class UpdateOperation: StatefulOperation, @unchecked Sendable {
   var allowsExternalHandOff: Bool {
     get { handOffPolicy.withLock { $0 } }
     set { handOffPolicy.withLock { $0 = newValue } }
+  }
+
+  private let automaticStorage = Mutex<AutomaticUpdatePolicy?>(nil)
+  /// Present on jobs Upkeep started by itself (Update automatically).
+  var automaticPolicy: AutomaticUpdatePolicy? {
+    get { automaticStorage.withLock { $0 } }
+    set { automaticStorage.withLock { $0 = newValue } }
+  }
+
+  /// An automatic job that is no longer eligible when its turn comes never starts.
+  override func shouldStart() -> Bool {
+    automaticPolicy?.stillEligible() ?? true
   }
 
   private let declinedQuit = Mutex(false)

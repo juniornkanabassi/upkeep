@@ -21,6 +21,9 @@ struct LatestRootView: View {
   @ObservedObject private var checking: UpdateCheckingService
   @ObservedObject private var searchFocusController: SearchFocusController
   @State private var columnVisibility = NavigationSplitViewVisibility.all
+  /// Below this width the window uses the compact layout of screens 12 and 13.
+  static let compactWidth: CGFloat = 1100
+  @State private var compact = false
   init(
     environment: AppEnvironment,
     detailViewModel: ReleaseNotesDetailViewModel = ReleaseNotesDetailViewModel(),
@@ -54,6 +57,12 @@ struct LatestRootView: View {
     }
     .environment(\.windowFocus, $focus)
     .environment(\.appPreferences, environment.preferences)
+    .environment(\.compactLayout, compact)
+    // Narrow windows hide the sidebar (its toolbar button brings it back) and row buttons.
+    .onGeometryChange(for: Bool.self) { $0.size.width < Self.compactWidth } action: { narrow in
+      compact = narrow
+      columnVisibility = narrow ? .detailOnly : .all
+    }
     .onChange(of: searchFocusController.request) { _, request in
       if request != nil { columnVisibility = .all }
     }
