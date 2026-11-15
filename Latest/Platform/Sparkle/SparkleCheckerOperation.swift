@@ -58,6 +58,9 @@ final class SparkleUpdateCheckerOperation: NSObject, @unchecked Sendable {
     guard let bundle = Bundle(path: app.fileURL.path) else {
       throw LatestError.updateInfoUnavailable
     }
+    if let url, try await Self.feedAnswersWithWebPage(url) {
+      throw DriverSourceUnavailable(note: "Feed answers with a web page (consent).")
+    }
     let timeoutTask = Task { [weak self] in
       try? await Task.sleep(nanoseconds: UInt64(Self.checkTimeout * 1_000_000_000))
       guard !Task.isCancelled else { return }
@@ -89,6 +92,29 @@ final class SparkleUpdateCheckerOperation: NSObject, @unchecked Sendable {
       self.cancellationState.withLock { $0 = true }
       self.complete(.failure(CancellationError()))
     }
+  }
+
+  static func isWebPage(data: Data, response: URLResponse) -> Bool {
+    if response.mimeType?.lowercased() == "text/html" { return true }
+    let prefix = String(decoding: data.prefix(1024), as: UTF8.self)
+      .trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    return prefix.hasPrefix("<!doctype html") || prefix.hasPrefix("<html")
+  }
+
+  private static func feedAnswersWithWebPage(_ url: URL) async throws -> Bool {
+    // Edits redirects its appcast to Instagram's consent page. Keep other feeds on
+    // Sparkle's existing network path and avoid an extra request for every app.
+    guard url.host == "edits.instagram.com" else { return false }
+    var request = URLRequest(url: url)
+    request.timeoutInterval = checkTimeout
+    let (bytes, response) = try await URLSession.shared.bytes(for: request)
+    if response.mimeType?.lowercased() == "text/html" { return true }
+    var prefix = Data()
+    for try await byte in bytes {
+      prefix.append(byte)
+      if prefix.count == 1024 { break }
+    }
+    return isWebPage(data: prefix, response: response)
   }
 
   @MainActor

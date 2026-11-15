@@ -146,7 +146,7 @@ extension App {
   var availabilityUnknown: Bool { update?.availabilityUnknown ?? false }
 
   /// The update action can be offered: an update is available, or it is a check hand-off.
-  var isActionable: Bool { updateAvailable || availabilityUnknown }
+  var isActionable: Bool { capability != .unsupported && (updateAvailable || availabilityUnknown) }
 
   /// This is the running Updater's own bundle (presentation only: it never updates itself yet).
   var isUpdaterItself: Bool { bundleIdentifier == Foundation.Bundle.main.bundleIdentifier }

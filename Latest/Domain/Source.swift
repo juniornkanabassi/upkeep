@@ -11,6 +11,8 @@ extension App {
   /// The source of update information.
   enum Source: String, Equatable, Sendable {
     /// No known source had information about this app. It is unsupported by the update checker.
+    case driver
+
     case none
 
     /// The Sparkle Updater is the update source.
@@ -55,7 +57,7 @@ extension App.Source {
       return .none
     case .sparkle, .appStore, .directDownload:
       return .full
-    case .homebrew, .vendor:
+    case .homebrew, .vendor, .driver:
       return .limited
     }
   }

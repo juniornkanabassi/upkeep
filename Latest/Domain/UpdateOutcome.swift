@@ -41,7 +41,7 @@ extension App {
   /// Source actions map onto capabilities: built-in actions write to this app's URL,
   /// external ones open another updater.
   var capability: UpdateCapability {
-    guard let updateAction else { return .unsupported }
+    guard bundle.parent == nil, let updateAction else { return .unsupported }
     if case .vendorTool = updateAction { return .vendorTool }
     return updateAction.installs ? .install : .handOff
   }

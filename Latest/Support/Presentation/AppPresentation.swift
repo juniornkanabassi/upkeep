@@ -186,6 +186,7 @@ extension App {
   /// Who provides the version information, for "Updates via".
   var sourceName: String {
     switch source {
+    case .driver: bundle.note ?? "Driver"
     case .sparkle: "Sparkle"
     case .appStore: "App Store"
     case .homebrew: "Homebrew"

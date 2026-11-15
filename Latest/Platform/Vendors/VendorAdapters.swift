@@ -5,6 +5,7 @@ import Foundation
 /// Vendor routes come first when the vendor manages this exact app: Microsoft AutoUpdate,
 /// "Relaunch Chrome" for Chrome, and a Creative Cloud check for Adobe apps.
 struct VendorAdapters: Sendable {
+  var blackmagic = false
   var microsoft: MicrosoftAutoUpdate?
   var google: GoogleChrome?
   var adobe: AdobeCreativeCloud?
@@ -12,7 +13,7 @@ struct VendorAdapters: Sendable {
   var copies: @Sendable (String) throws -> Set<String> = { try AppStoreInstallGate.live.walk($0) }
   /// The walk's time limit; past it the app is treated as unsafe and handed off.
   var copiesDeadline: Duration = .seconds(10)
-  static let live = VendorAdapters(microsoft: .shared, google: .shared, adobe: .live)
+  static let live = VendorAdapters(blackmagic: true, microsoft: .shared, google: .shared, adobe: .live)
   static let none = VendorAdapters()
 
   /// nil when no vendor tool manages this app. Throws when the vendor's own source could not
