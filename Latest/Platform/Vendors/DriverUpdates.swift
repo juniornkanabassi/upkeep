@@ -38,12 +38,14 @@ final class ARKUpdateOperation: UpdateOperation, @unchecked Sendable {
   typealias Installer = @Sendable (URL) async throws -> Void
   private let tool: URL
   private let install: Installer
+  private let usesSystemInstaller: Bool
   override var lockKey: String { "rogue-amoeba-ark" }
 
   init(app: App.Bundle, tool: URL, version: Version,
-       install: @escaping Installer = ARKUpdateOperation.installWithAdministrator) {
+       install: Installer? = nil) {
     self.tool = tool
-    self.install = install
+    self.usesSystemInstaller = install == nil
+    self.install = install ?? Self.installWithAdministrator
     super.init(bundleIdentifier: app.bundleIdentifier, appIdentifier: app.fileURL)
     expectedVersion = version
     recordedIdentity = app
@@ -53,6 +55,10 @@ final class ARKUpdateOperation: UpdateOperation, @unchecked Sendable {
     super.execute()
     Task {
       do {
+        if self.usesSystemInstaller,
+          self.appIdentifier.standardizedFileURL != URL(fileURLWithPath: "/Library/Audio/Plug-Ins/HAL/ARK.driver") {
+          throw DriverSourceUnavailable(note: "ARK's installer only updates the system ARK driver.")
+        }
         guard let installed = DriverDiscovery.read(at: self.appIdentifier),
           installed.bundleIdentifier == "com.rogueamoeba.ARK.driver",
           let number = DriverDiscovery.arkVersion(at: self.tool),

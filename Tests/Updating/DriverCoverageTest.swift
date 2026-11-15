@@ -113,6 +113,21 @@ final class DriverCoverageTest: XCTestCase {
     }
   }
 
+  func testRealInstallerRefusesNonSystemTargetBeforePrompt() async throws {
+    let root = try root()
+    let driver = root.appendingPathComponent("ARK.driver")
+    try bundle(driver, id: "com.rogueamoeba.ARK.driver", version: "1.0")
+    let operation = ARKUpdateOperation(app: try XCTUnwrap(DriverDiscovery.read(at: driver)),
+      tool: root.appendingPathComponent("unused"),
+      version: Version(versionNumber: "2.0", buildNumber: nil))
+    let done = expectation(description: "refused")
+    operation.completionBlock = { done.fulfill() }
+    let queue = UpdateQueue()
+    queue.addOperation(operation)
+    await fulfillment(of: [done], timeout: 5)
+    XCTAssertTrue(operation.error?.localizedDescription.contains("only updates the system") == true)
+  }
+
   func testAdminScriptQuotesPathAndValidatesPrivilegedCopy() {
     let script = ARKUpdateOperation.administratorScript(tool: URL(fileURLWithPath: "/tmp/a'\"b/arkinstaller"))
     XCTAssertTrue(script.contains("with administrator privileges"))

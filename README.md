@@ -191,3 +191,23 @@ Both use the Apple Development identity for team M6L2VW4W5Z and build under `/pr
 Based on [Latest by Max Langer and contributors](https://github.com/mangerlahn/Latest) and the [Ertyoii fork](https://github.com/Ertyoii/Latest). Modifications © 2026 Junior Nkana Bassi; upstream and dependency notices are retained. Full GPL and Sparkle notices are available offline in Help → Licenses.
 
 Distributed under [GPL version 3](LICENSE.md). Binary distributions must include corresponding source. This software comes without warranty.
+
+## Drivers and companion apps
+
+Discovery includes audio drivers in `/Library/Audio/Plug-Ins/HAL`, activated extension
+bundles in `/Library/SystemExtensions`, and legacy kernel extensions in
+`/Library/Extensions`. Driver rows include their vendor, path and parent where known.
+Extensions associated with a discovered host app use that app's version and say
+"Updates with" the host. Legacy kernel extensions have no automatic update route.
+Known helpers, uninstallers and SDK sample apps carry a `parent` in control output
+and cannot be updated independently.
+
+ARK's available version is the newest `arkinstaller` embedded in a discovered
+Rogue Amoeba app. Its update runs through the shared queue and one macOS administrator
+prompt. The privileged command validates a private copy of the installer against
+Rogue Amoeba's signature before running `install --silent`; success requires the
+installed driver's version to increase. Audio applications may briefly lose sound.
+Blackmagic Resolve and Desktop Video use Blackmagic's version catalogue and hand off
+to its download page. Desktop Video's drivers follow the package version; installation
+and macOS extension approval remain with the user. Edits' HTML consent response is
+reported explicitly instead of as a malformed feed.
