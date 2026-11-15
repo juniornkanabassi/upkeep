@@ -63,10 +63,13 @@ final class AppPreferences: ObservableObject {
     switch setting {
     case .autoUpdate:
       if on, !Self.canAutoUpdate(app) {
-        throw Refusal(message: "\(app.name) can't update automatically: Upkeep doesn't install its updates itself.")
+        throw Refusal(
+          message:
+            "\(app.name) can't update automatically: Upkeep doesn't install its updates itself.")
       }
       if on, app.isIgnored {
-        throw Refusal(message: "\(app.name) is ignored. Stop ignoring it before turning on automatic updates.")
+        throw Refusal(
+          message: "\(app.name) is ignored. Stop ignoring it before turning on automatic updates.")
       }
       store(on, path: app.fileURL.path)
     case .ignore:
@@ -78,7 +81,8 @@ final class AppPreferences: ObservableObject {
       }
     }
     guard previous != on else { return }
-    changes[Self.key(setting, app)] = Change(caller: caller, date: now(), on: on, previous: previous)
+    changes[Self.key(setting, app)] = Change(
+      caller: caller, date: now(), on: on, previous: previous)
     var entry = UpdateHistoryEntry(
       before: app.bundle, after: app.bundle,
       outcome: .settingChanged(setting: setting.rawValue, on: on))

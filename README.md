@@ -1,10 +1,12 @@
-# Updater
+# Upkeep
 
-Updater is a macOS app that finds and installs updates for the apps on a Mac, whether they came from the App Store, Sparkle feeds or Homebrew. It targets macOS 26 and later and is a personal project by Junior Nkana Bassi; it has no public releases yet.
+Upkeep was called Updater until 0.11.0. The bundle id (`com.juniornkanabassi.Updater`), settings and data folder keep the old name so nothing is lost, the Xcode scheme is still `Updater`, and `updater` remains an alias of the `upkeep` command.
+
+Upkeep is a macOS app that finds and installs updates for the apps on a Mac, whether they came from the App Store, Sparkle feeds or Homebrew. It targets macOS 26 and later and is a personal project by Junior Nkana Bassi; it has no public releases yet.
 
 It is based on [Latest](https://github.com/mangerlahn/Latest) by Max Langer and the [Ertyoii fork](https://github.com/Ertyoii/Latest) of it, and is licensed under [GPL-3.0](LICENSE.md). Upstream and dependency notices are retained, and the full GPL and Sparkle notices are available offline in Help → Licenses.
 
-![Updater](latest.png)
+![Upkeep](latest.png)
 
 ## Development
 
@@ -58,11 +60,11 @@ List visibility lives in View → Show: Needs You, Up to Date, Other Apps and Ig
 
 ## Background, menu bar and permissions
 
-Each watched folder has a recursive FSEvents stream with a 2 second latency. A change inside a known app re-reads only that app; a new or removed app rescans the folder. Updater checks on launch, after wake and on a timer (Settings: off, 1, 4, 12 or 24 hours; 4 by default), skips a check while one runs, and never installs on its own. After each check it records the waiting updates; after a background or folder-triggered check (not a manual one) it posts one summary notification for updates it has not announced before, asking for permission the first time. The menu bar item (it can be hidden in Settings) shows the waiting count and list, Update All with the window's rules, Check for Updates, Open Updater and Quit; while it shows, closing the window leaves Updater running. Settings → Permissions shows App Management, the update helper, notifications and Full Disk Access, each with its state and a button to its System Settings pane. A failure recorded as needing App Management offers Open Settings next to Retry; the refusal shows as history ("Last attempt was blocked by App Management"), not as the current state. Casks that need administrator rights stay a Terminal hand-off: `sudo` only accepts the plain password, so no askpass helper ships.
+Each watched folder has a recursive FSEvents stream with a 2 second latency. A change inside a known app re-reads only that app; a new or removed app rescans the folder. Upkeep checks on launch, after wake and on a timer (Settings: off, 1, 4, 12 or 24 hours; 4 by default), skips a check while one runs, and never installs on its own. After each check it records the waiting updates; after a background or folder-triggered check (not a manual one) it posts one summary notification for updates it has not announced before, asking for permission the first time. The menu bar item (it can be hidden in Settings) shows the waiting count and list, Update All with the window's rules, Check for Updates, Open Upkeep and Quit; while it shows, closing the window leaves Upkeep running. Settings → Permissions shows App Management, the update helper, notifications and Full Disk Access, each with its state and a button to its System Settings pane. A failure recorded as needing App Management offers Open Settings next to Retry; the refusal shows as history ("Last attempt was blocked by App Management"), not as the current state. Casks that need administrator rights stay a Terminal hand-off: `sudo` only accepts the plain password, so no askpass helper ships.
 
 ## Updating applications
 
-Features call `AppUpdating`; platform adapters own the update mechanism. Sparkle is pinned through Swift Package Manager. Native Mac App Store apps update within Updater; macOS 26.1+ uses a privileged helper. Wrapped iOS apps open the App Store. Before downloading, Updater verifies signing, approval, and a live response from the bundled helper. Legacy helper registrations migrate to one stable fork-specific launchd label, rebuilding their parent-app association without resetting other background items. Migration and repair share the same active-installation protections. An unreachable or outdated daemon gets one registration refresh followed by bounded readiness checks. A persistent setup sheet offers repair, System Settings approval, cancellation, and an App Store fallback; pending updates resume only after readiness succeeds. Readiness is checked again when a queued update starts. Helper refresh is blocked while Updater is installing another app, and an installation is never automatically replayed after a lost connection.
+Features call `AppUpdating`; platform adapters own the update mechanism. Sparkle is pinned through Swift Package Manager. Native Mac App Store apps update within Upkeep; macOS 26.1+ uses a privileged helper. Wrapped iOS apps open the App Store. Before downloading, Upkeep verifies signing, approval, and a live response from the bundled helper. Legacy helper registrations migrate to one stable fork-specific launchd label, rebuilding their parent-app association without resetting other background items. Migration and repair share the same active-installation protections. An unreachable or outdated daemon gets one registration refresh followed by bounded readiness checks. A persistent setup sheet offers repair, System Settings approval, cancellation, and an App Store fallback; pending updates resume only after readiness succeeds. Readiness is checked again when a queued update starts. Helper refresh is blocked while Upkeep is installing another app, and an installation is never automatically replayed after a lost connection.
 
 If a Sparkle app declines to quit, the update stays active and its Retry control sends another quit request. Save your work before retrying. Installation remains protected from cancellation once Sparkle takes over.
 
@@ -85,55 +87,55 @@ original/candidate comparison has been reviewed.
 
 ## Command line and AI assistants
 
-Updater includes an `updater` command and an MCP server so Claude, Codex and other assistants can use it. Both talk to the running app over a socket in `~/Library/Application Support/Updater/control.sock` that only your own user account can open. If Updater is closed, a command starts it in the background with no window. Every action goes through the same scheduler as the window, so the window shows a job started from the command line as it runs.
+Upkeep includes an `upkeep` command and an MCP server so Claude, Codex and other assistants can use it. Both talk to the running app over a socket in `~/Library/Application Support/Updater/control.sock` that only your own user account can open. If Upkeep is closed, a command starts it in the background with no window. Every action goes through the same scheduler as the window, so the window shows a job started from the command line as it runs.
 
 `install.sh` links the command into `~/.local/bin`. By hand:
 
 ```sh
 mkdir -p ~/.local/bin
-ln -s "/Applications/JuniorOS Apps/Updater.app/Contents/Helpers/updater" ~/.local/bin/updater
+ln -s "/Applications/JuniorOS Apps/Upkeep.app/Contents/Helpers/upkeep" ~/.local/bin/upkeep
 ```
 
 ```sh
-updater --help                      # every command; updater <command> --help for one
-updater list --updates              # apps with an update waiting
-updater check --refresh             # check now and wait for the result
-updater update com.example.App      # or a path, or all; prints a job id
-updater status <job-id>             # waiting, running, updated, noChange, failed, needsQuit…
-updater history --limit 10
+upkeep --help                      # every command; upkeep <command> --help for one
+upkeep list --updates              # apps with an update waiting
+upkeep check --refresh             # check now and wait for the result
+upkeep update com.example.App      # or a path, or all; prints a job id
+upkeep status <job-id>             # waiting, running, updated, noChange, failed, needsQuit…
+upkeep history --limit 10
 ```
 
-Add `--json` for one line of JSON. Exit codes: 0 ok, 1 Updater refused or failed, 2 usage, 3 Updater is not running and could not be started.
+Add `--json` for one line of JSON. Exit codes: 0 ok, 1 Upkeep refused or failed, 2 usage, 3 Upkeep is not running and could not be started.
 
 - A second request for an app that is already updating gets the same job id back as `inProgress`. Jobs that share a tool (brew, msupdate, the App Store helper) wait their turn and show as `waiting`.
 - Apps that update somewhere else (App Store page, Creative Cloud, a Terminal command, a Chrome relaunch) come back as `handOff` with the place named. Only `update <app> --allow-handoff` opens it, and that also covers a job that falls back to a hand-off while it runs (an App Store install that cannot prove its target, a Sparkle item that turned informational). `update all` never hands off.
-- A running app is quit only after you click Quit and Update in Updater's prompt. If nobody answers within five minutes, or you cancel, the job ends as `needsQuit` and nothing changes.
-- Jobs the window started can be looked up by the job id `updater list` shows.
-- Just after Updater starts, commands that need the first check (`list --updates`, `update`) answer `not_ready` for a short while; retry. A list taken while a check runs says `checking`.
+- A running app is quit only after you click Quit and Update in Upkeep's prompt. If nobody answers within five minutes, or you cancel, the job ends as `needsQuit` and nothing changes.
+- Jobs the window started can be looked up by the job id `upkeep list` shows.
+- Just after Upkeep starts, commands that need the first check (`list --updates`, `update`) answer `not_ready` for a short while; retry. A list taken while a check runs says `checking`.
 - `list` gives each app's `availability`: `available`, `current` (only after a check that succeeded and could compare versions), `checking`, `error` (with the check's error) or `unknown`. Where only the vendor's app knows (Adobe), the command prints "check in Creative Cloud" instead of a version.
-- `handedOff` means Updater opened the other updater. `handOff` means it did not: the reply names where to update and why, and suggests `--allow-handoff` only when that would open it.
+- `handedOff` means Upkeep opened the other updater. `handOff` means it did not: the reply names where to update and why, and suggests `--allow-handoff` only when that would open it.
 - A request retried with the same `--request-id` within five minutes acts once and gets the first answer again. Nothing is ever sent or published.
 
 To connect the built-in MCP server to Claude Code:
 
 ```sh
-claude mcp add -s user updater -- "/Applications/JuniorOS Apps/Updater.app/Contents/Helpers/updater" mcp
+claude mcp add -s user upkeep -- "/Applications/JuniorOS Apps/Upkeep.app/Contents/Helpers/upkeep" mcp
 ```
 
 For Codex, add this to `~/.codex/config.toml`:
 
 ```toml
-[mcp_servers.updater]
-command = "/Applications/JuniorOS Apps/Updater.app/Contents/Helpers/updater"
+[mcp_servers.upkeep]
+command = "/Applications/JuniorOS Apps/Upkeep.app/Contents/Helpers/upkeep"
 args = ["mcp"]
 tool_timeout_sec = 180
 ```
 
-The tools (`list`, `check`, `update`, `status`, `history`, `configure`) come from `updater mcp-manifest`, so they always match the command.
+The tools (`list`, `check`, `update`, `status`, `history`, `configure`) come from `upkeep mcp-manifest`, so they always match the command.
 
 ## Apps from the Homebrew catalogue
 
-Apps the Homebrew catalogue knows but brew did not install can be updated by Updater itself, only when every rule holds; otherwise they keep their own route (usually "open the app"):
+Apps the Homebrew catalogue knows but brew did not install can be updated by Upkeep itself, only when every rule holds; otherwise they keep their own route (usually "open the app"):
 
 1. Exactly one catalogue entry names the app's bundle ID as identifier evidence (an app artifact, `uninstall quit:` or zap path). Name-only matches and duplicates keep their route.
 2. That entry, fetched fresh before deciding and again before installing, has one `app` artifact (plus optional zap and a quit of this app), no other dependencies than macOS or architecture, a real version and a real SHA-256, and an HTTPS download.
@@ -147,11 +149,11 @@ Under the rules above, two catalogue entries that are channels of one product (`
 
 ## Interrupted updates
 
-Every route that moves or clones an app (direct downloads, Sparkle, Homebrew with its Caskroom record, vendor tools, the App Store helper) first writes a record to `~/Library/Application Support/Updater/transactions/` and keeps the original in `~/Library/Application Support/Updater/Backups/` (or a `.Updater Backups` folder beside the app when it is on another volume). The record is flushed at each step and removed once the attempt settles. At launch, before the window, the CLI or MCP can start anything, Updater waits for any installer named in a record to stop (the row says it is recovering, and jobs on that app or tool wait), then puts things right: a missing or damaged app gets its original back, a verified new version keeps it and drops the backup, and anything unclear keeps both copies and says where they are.
+Every route that moves or clones an app (direct downloads, Sparkle, Homebrew with its Caskroom record, vendor tools, the App Store helper) first writes a record to `~/Library/Application Support/Updater/transactions/` and keeps the original in `~/Library/Application Support/Updater/Backups/` (or a `.Updater Backups` folder beside the app when it is on another volume). The record is flushed at each step and removed once the attempt settles. At launch, before the window, the CLI or MCP can start anything, Upkeep waits for any installer named in a record to stop (the row says it is recovering, and jobs on that app or tool wait), then puts things right: a missing or damaged app gets its original back, a verified new version keeps it and drops the backup, and anything unclear keeps both copies and says where they are.
 
 ## Release notes
 
-`Latest/Resources/LatestReleaseNotes.json` supplies version-matched offline notes inherited from the Ertyoii fork. Updater does not update itself yet: it has no appcast or public key configured, and no menu item that opens a releases page.
+`Latest/Resources/LatestReleaseNotes.json` supplies version-matched offline notes inherited from the Ertyoii fork. Upkeep does not update itself yet: it has no appcast or public key configured, and no menu item that opens a releases page.
 
 Notes can load even if update checking fails. A failed or metadata-only source falls back to the vendor catalog. Notes target the available update or installed version; broad-version and latest-section fallbacks retain a degraded quality rating. Preparation, display, and new cache entries share immutable semantic text; older RTF caches use a narrow compatibility reader. Only genuine, nonempty notes are reused from the rendered cache; degraded fallbacks are retried so a recovered source can replace them.
 
@@ -181,7 +183,7 @@ Build products, logs, and captures can be regenerated. Keep visual references an
 ## Build and install
 
 ```sh
-./build.sh              # signed Release build, verified, zipped into ../Outputs/Updater-<version>.zip
+./build.sh              # signed Release build, verified, zipped into ../Outputs/Upkeep-<version>.zip
 ./install.sh            # installs into /Applications/JuniorOS Apps (override with UPDATER_INSTALL_ROOT)
 ```
 
@@ -195,13 +197,13 @@ Distributed under [GPL version 3](LICENSE.md). Binary distributions must include
 
 The MCP server is built into the Swift CLI and needs no Node installation. It negotiates
 2025-11-25 or 2025-06-18, returns structured results, and accepts cancellation of waits.
-Use `updater status <job> --wait 50` to await an update. `check` waits at most 50 seconds
+Use `upkeep status <job> --wait 50` to await an update. `check` waits at most 50 seconds
 (default 45) and returns `checking: true` when more time is needed. Cancelling a wait
 never cancels an already accepted update.
 
 `list` is compact by default; use `--full` for source details. `--kind app|driver|all`
 selects the item kind.
-`updater set <target> --ignore on|off` changes the same bundle-id preference as the GUI.
+`upkeep set <target> --ignore on|off` changes the same bundle-id preference as the GUI, and `--auto on|off` turns Update automatically on or off for that copy (MCP `configure` with `ignored` and `autoUpdate`). Automatic updates are off by default and only offered for apps Upkeep installs itself; after each check, switched-on apps that are closed go through the same scheduler as Update All. Ignoring an app turns its automatic updates off. The window credits agent changes ("Turned on by Claude at 11:05. Undo") and History records them.
 MCP uses `configure {target, ignored}`, `list {updatesOnly, fields: "full"}` and
 `status {jobId, wait}`. There is no per-app automatic-update setting.
 Exit codes: 0 success, 1 refused/failed, 2 usage, 3 app unavailable,
@@ -210,8 +212,8 @@ Exit codes: 0 success, 1 refused/failed, 2 usage, 3 app unavailable,
 ## Uninstall preview and confirmation
 
 ```sh
-updater uninstall /path/to/Example.app --dry-run
-updater uninstall /path/to/Example.app --confirm TOKEN
+upkeep uninstall /path/to/Example.app --dry-run
+upkeep uninstall /path/to/Example.app --confirm TOKEN
 ```
 
 Add `--with-data` to the preview to select Application Support and container data;
@@ -223,7 +225,7 @@ advisory `anthropic/requiresUserInteraction` hint, but the real gate is the clie
 per-tool approval: leave `uninstall_confirm` on "ask" in Claude Code. For Codex, add:
 
 ```toml
-[mcp_servers.updater.tools.uninstall_confirm]
+[mcp_servers.upkeep.tools.uninstall_confirm]
 approval_mode = "prompt"
 ```
 
@@ -231,7 +233,7 @@ Files go to the Bin, never permanent deletion. Root-owned items use one macOS
 administrator prompt before any service is stopped or file is moved. Cancelling
 or denying it leaves all items in place and returns the items needing admin rights.
 Services are stopped before any files move; individual file failures are reported
-per item. Running apps, Updater, Apple system apps and apps in
+per item. Running apps, Upkeep, Apple system apps and apps in
 `/Applications/JuniorOS Apps` are refused. With another installed copy, only the
 selected app bundle is included. Paths are revalidated before removal. Per-item
 results and `uninstall.log` record what happened; a removed app records `uninstalled`

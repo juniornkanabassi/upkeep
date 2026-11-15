@@ -357,7 +357,7 @@ final class RecoveryOperation: UpdateOperation, @unchecked Sendable {
       switch outcome {
       case .restored:
         outcomeOverride = .failed(
-          reason: "Updater was interrupted while updating this app; the original was put back.",
+          reason: "Upkeep was interrupted while updating this app; the original was put back.",
           logPath: nil)
       case .keptNewVersion(let version):
         outcomeOverride = .updated(from: record.originalVersion ?? "?", to: version)
@@ -376,7 +376,7 @@ final class RecoveryOperation: UpdateOperation, @unchecked Sendable {
   /// for the next launch or volume mount.
   @MainActor private func reconcile() async -> TransactionRecovery.Outcome {
     let unresolved = TransactionRecovery.Outcome.unresolved(
-      "Updater was interrupted while updating this app and cannot settle it yet. Both copies are kept: \(record.target) and the original at \(record.backup)."
+      "Upkeep was interrupted while updating this app and cannot settle it yet. Both copies are kept: \(record.target) and the original at \(record.backup)."
     )
     var done = record.recovery ?? .init()
     // Decided from the disk on every attempt. Once a step is done the app must be the
@@ -445,7 +445,7 @@ final class RecoveryOperation: UpdateOperation, @unchecked Sendable {
       queue.hold(
         target: unreadable.target, lockKey: unreadable.lockKey,
         reason:
-          "The recovery record \(unreadable.file.path) cannot be read; Updater will not change \(unreadable.target ?? "any app") until it is fixed or removed."
+          "The recovery record \(unreadable.file.path) cannot be read; Upkeep will not change \(unreadable.target ?? "any app") until it is fixed or removed."
       )
     }
     return scan.records.map { record in

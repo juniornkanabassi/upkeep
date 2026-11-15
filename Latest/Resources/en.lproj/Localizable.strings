@@ -155,10 +155,10 @@
 "UpdateAllToolbarItemToolTip" = "Update all Apps";
 
 /* Shown when the update helper is not installed. */
-"InstallHelperNotFoundErrorDescription" = "To install App Store updates within Updater, a helper must be installed. If you don't want to install the helper, you can update apps via the App Store manually.";
+"InstallHelperNotFoundErrorDescription" = "To install App Store updates within Upkeep, a helper must be installed. If you don't want to install the helper, you can update apps via the App Store manually.";
 
 /* Shown when the update helper is installed but disabled, requiring approval. */
-"InstallHelperRequiresApprovalErrorDescription" = "Enable the update helper in Settings to install updates within Updater.";
+"InstallHelperRequiresApprovalErrorDescription" = "Enable the update helper in Settings to install updates within Upkeep.";
 
 /* Title of the alert prompting to install or enable the update helper */
 "UpdateInstallHelperAlert.Title" = "Update Helper Required";

@@ -111,7 +111,9 @@ struct LibraryContent {
   }
 
   static func folderID(_ name: String) -> URL {
-    URL(string: "upkeep-folder:" + (name.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? "folder"))!
+    URL(
+      string: "upkeep-folder:"
+        + (name.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? "folder"))!
   }
 
   /// Top-level apps, with helpers and extensions grouped under the app or folder they came with.
@@ -122,18 +124,24 @@ struct LibraryContent {
     for app in all where app.bundle.parent != nil && app.bundle.kind == .app {
       children[app.bundle.parent!, default: []].append(app)
     }
-    let extensions = Dictionary(grouping: all.filter { $0.bundle.kind == .driver && $0.bundle.hostURL != nil }) {
+    let extensions = Dictionary(
+      grouping: all.filter { $0.bundle.kind == .driver && $0.bundle.hostURL != nil }
+    ) {
       $0.bundle.hostURL!.standardizedFileURL.path
     }
     var rows = topLevel.map { app -> Row in
       let helpers = children.removeValue(forKey: app.name) ?? []
       let hosted = extensions[app.fileURL.standardizedFileURL.path] ?? []
-      let nested = (helpers + hosted).map { Row(id: $0.identifier, name: $0.name, app: $0, detail: nil) }
+      let nested = (helpers + hosted).map {
+        Row(id: $0.identifier, name: $0.name, app: $0, detail: nil)
+      }
       let detail: String? =
         hosted.isEmpty
         ? (helpers.isEmpty ? nil : Self.count(helpers.count, "helper"))
         : Self.count(nested.count, helpers.isEmpty ? "extension" : "item")
-      return Row(id: app.identifier, name: app.name, app: app, detail: detail, children: nested.isEmpty ? nil : nested)
+      return Row(
+        id: app.identifier, name: app.name, app: app, detail: detail,
+        children: nested.isEmpty ? nil : nested)
     }
     // Helpers whose parent is a folder rather than an app.
     for (folder, apps) in children {
@@ -152,7 +160,9 @@ struct LibraryContent {
 
   /// Drivers macOS updates itself are hidden and counted.
   var drivers: [App] { visible.filter { $0.bundle.kind == .driver && !Self.isApple($0) } }
-  var hiddenAppleDrivers: Int { apps.filter { $0.bundle.kind == .driver && Self.isApple($0) }.count }
+  var hiddenAppleDrivers: Int {
+    apps.filter { $0.bundle.kind == .driver && Self.isApple($0) }.count
+  }
   var driverCount: Int { apps.filter { $0.bundle.kind == .driver && !Self.isApple($0) }.count }
 
   var driverSections: [AppListSnapshot.SectionContent] {
@@ -167,7 +177,8 @@ struct LibraryContent {
           && $0.bundle.parent == nil
       },
       group("System extensions, updated with their app") {
-        !$0.fileURL.path.contains("/Audio/Plug-Ins/HAL/") && ($0.bundle.hostURL != nil || $0.bundle.parent != nil)
+        !$0.fileURL.path.contains("/Audio/Plug-Ins/HAL/")
+          && ($0.bundle.hostURL != nil || $0.bundle.parent != nil)
       },
     ].compactMap { $0 }
   }
@@ -178,7 +189,8 @@ struct LibraryContent {
 
   private func section(_ title: String, _ apps: [App]) -> AppListSnapshot.SectionContent? {
     apps.isEmpty
-      ? nil : AppListSnapshot.SectionContent(
+      ? nil
+      : AppListSnapshot.SectionContent(
         section: AppListSnapshot.Section(title: title, numberOfApps: apps.count), apps: apps)
   }
 

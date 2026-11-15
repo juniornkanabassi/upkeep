@@ -14,7 +14,7 @@ enum SidebarUpdateActionTitle {
         format: NSLocalizedString(
           "ExternalUpdateAction",
           comment:
-            "Action to update a given app outside of Updater. The placeholder is the external updater."
+            "Action to update a given app outside of Upkeep. The placeholder is the external updater."
         ),
         externalUpdater
       )

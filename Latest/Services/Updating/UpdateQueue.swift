@@ -267,7 +267,7 @@ class UpdateQueue: OperationQueue, @unchecked Sendable {
   func recordHandOff(of app: App) {
     // The window's hand-off actions open their target directly.
     let note = HandOffNote(
-      destination: app.externalUpdaterName ?? app.name, reason: "Opened from Updater.",
+      destination: app.externalUpdaterName ?? app.name, reason: "Opened from Upkeep.",
       opened: true, blockedByPolicy: false)
     history?.record(
       UpdateHistoryEntry(before: app.bundle, after: app.bundle, outcome: .handedOff, handOff: note))

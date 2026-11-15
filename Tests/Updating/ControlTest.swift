@@ -545,7 +545,7 @@ final class ControlTest: XCTestCase {
     XCTAssertNil(entry["available"], "no invented version")
     XCTAssertEqual(entry["source"], "vendor")
     XCTAssertEqual(entry["detectedBy"], .string(bundle.source.rawValue))
-    let cli = helpers.appendingPathComponent("Helpers/updater")
+    let cli = helpers.appendingPathComponent("Helpers/upkeep")
     let output = try await run(cli, ["list", "--updates"], home: harness.home)
     XCTAssertTrue(output.output.contains("check in Creative Cloud"), output.output)
   }
@@ -607,7 +607,7 @@ final class ControlTest: XCTestCase {
       environment["UPDATER_HOME"] = home.path
       environment["UPDATER_CLI"] =
         executable.deletingLastPathComponent()
-        .appendingPathComponent("updater").path
+        .appendingPathComponent("upkeep").path
       process.environment = environment
       let output = Pipe()
       process.standardOutput = output
@@ -626,7 +626,7 @@ final class ControlTest: XCTestCase {
     let harness = try harness()
     let app = try fixtureApp(harness, name: "Cli")
     harness.apps = [app]
-    let cli = helpers.appendingPathComponent("Helpers/updater")
+    let cli = helpers.appendingPathComponent("Helpers/upkeep")
     XCTAssertTrue(
       FileManager.default.isExecutableFile(atPath: cli.path), "the CLI ships in the bundle")
 
@@ -672,7 +672,7 @@ final class ControlTest: XCTestCase {
         }, removeAdmin: { _, _ in throw CancellationError() })
       harness.service.uninstall = uninstall
       let token = try XCTUnwrap(uninstall.preview(app: app.fileURL, withData: false, caller: "test")["token"]?.stringValue)
-      let cli = try await run(helpers.appendingPathComponent("Helpers/updater"),
+      let cli = try await run(helpers.appendingPathComponent("Helpers/upkeep"),
         ["uninstall", app.bundleIdentifier, "--confirm", token, "--caller", "test", "--json"], home: harness.home)
       XCTAssertNotEqual(cli.status, 0)
       let response = try JSONDecoder().decode(ControlResponse.self, from: Data(cli.output.utf8))
@@ -687,7 +687,7 @@ final class ControlTest: XCTestCase {
       if mode == "partial" { XCTAssertTrue(results(response).contains { $0["status"] == "removed" }) }
 
       let textToken = try XCTUnwrap(uninstall.preview(app: app.fileURL, withData: false, caller: "test")["token"]?.stringValue)
-      let textFailure = try await run(helpers.appendingPathComponent("Helpers/updater"),
+      let textFailure = try await run(helpers.appendingPathComponent("Helpers/upkeep"),
         ["uninstall", app.bundleIdentifier, "--confirm", textToken, "--caller", "test"], home: harness.home)
       XCTAssertNotEqual(textFailure.status, 0)
       XCTAssertTrue(textFailure.output.contains("failed: " + app.fileURL.path), textFailure.output)
@@ -695,7 +695,7 @@ final class ControlTest: XCTestCase {
       // Exercise the built MCP error adapter over the socket with the actual service outcome.
       harness.server?.stop()
       harness.server = try ControlServer(path: harness.socket, allowedUID: getuid()) { _ in response }
-      let mcp = try await run(helpers.appendingPathComponent("Helpers/updater"), ["mcp"], home: harness.home,
+      let mcp = try await run(helpers.appendingPathComponent("Helpers/upkeep"), ["mcp"], home: harness.home,
         input: "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"uninstall_confirm\",\"arguments\":{\"token\":\"fixture\"}}}\n")
       let reply = try XCTUnwrap(try JSONSerialization.jsonObject(with: Data(mcp.output.utf8)) as? [String: Any])
       let result = try XCTUnwrap(reply["result"] as? [String: Any])
@@ -717,7 +717,7 @@ final class ControlTest: XCTestCase {
       {"jsonrpc":"2.0","id":"1","method":"tools/call","params":{"name":"configure","arguments":{"target":"com.example.typed","ignored":false}}}
 
       """
-    let output = try await run(helpers.appendingPathComponent("Helpers/updater"), ["mcp"], home: harness.home, input: input)
+    let output = try await run(helpers.appendingPathComponent("Helpers/upkeep"), ["mcp"], home: harness.home, input: input)
     let replies = try output.output.split(separator: "\n").map {
       try XCTUnwrap(JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any])
     }
@@ -747,7 +747,7 @@ final class ControlTest: XCTestCase {
         {"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId":\(cancelled)}}
 
         """
-      let output = try await run(helpers.appendingPathComponent("Helpers/updater"), ["mcp"], home: harness.home, input: input)
+      let output = try await run(helpers.appendingPathComponent("Helpers/upkeep"), ["mcp"], home: harness.home, input: input)
       let replies = output.output.split(separator: "\n")
       XCTAssertEqual(replies.count, 1)
       let reply = try XCTUnwrap(try JSONSerialization.jsonObject(with: Data(try XCTUnwrap(replies.first).utf8)) as? [String: Any])
@@ -759,7 +759,7 @@ final class ControlTest: XCTestCase {
     let harness = try harness()
     let app = try fixtureApp(harness, name: "Mcp")
     harness.apps = [app]
-    let adapter = helpers.appendingPathComponent("Helpers/updater")
+    let adapter = helpers.appendingPathComponent("Helpers/upkeep")
     let messages = [
       #"{"jsonrpc":"2.0","id":1,"method":"initialize"}"#,
       #"{"jsonrpc":"2.0","id":2,"method":"tools/list"}"#,
@@ -775,7 +775,7 @@ final class ControlTest: XCTestCase {
       var environment = ProcessInfo.processInfo.environment
       environment["UPDATER_HOME"] = harness.home.path
       environment["UPDATER_CLI"] =
-        Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/updater").path
+        Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/upkeep").path
       process.environment = environment
       let stdout = Pipe()
       let stdin = Pipe()

@@ -59,7 +59,7 @@ enum CatalogueInstall {
     default: picked = []
     }
     guard picked.count == 1, let token = picked.first else {
-      throw .identity("Updater cannot tell which release channel this copy follows.")
+      throw .identity("Upkeep cannot tell which release channel this copy follows.")
     }
     return token
   }

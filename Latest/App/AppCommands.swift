@@ -125,7 +125,7 @@ struct LatestCommands: Commands {
 
   var body: some Commands {
     CommandGroup(replacing: .appInfo) {
-      Button("About Updater") {
+      Button("About Upkeep") {
         openWindow(id: "about")
       }
     }
@@ -184,7 +184,7 @@ struct LatestCommands: Commands {
           .help("Show apps already verified up to date.")
         Toggle("Other Apps", isOn: otherApps)
           .disabled(!appCommands.showInstalledUpdates)
-          .help("Include apps Updater cannot check. Up to Date must also be shown.")
+          .help("Include apps Upkeep cannot check. Up to Date must also be shown.")
         Toggle("Ignored", isOn: showIgnoredApps)
           .keyboardShortcut("i", modifiers: [.command, .shift])
           .help("Show apps you have chosen to ignore.")
@@ -262,7 +262,7 @@ private struct SelectedAppCommandButtons: View {
       return String(
         format: NSLocalizedString(
           "ExternalUpdateAction",
-          comment: "Action to update a given app outside of Updater."
+          comment: "Action to update a given app outside of Upkeep."
         ),
         externalUpdater
       )

@@ -170,7 +170,7 @@ private struct DirectoryLocationRow: View {
     .accessibilityLabel(accessibilityLabel)
     .help(
       isReachable == false
-        ? "Can't reach this folder. Check that its drive is connected and Updater has permission to read it."
+        ? "Can't reach this folder. Check that its drive is connected and Upkeep has permission to read it."
         : url.path
     )
     .task(id: url) {

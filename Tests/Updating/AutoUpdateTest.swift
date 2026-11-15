@@ -30,7 +30,8 @@ final class AutoUpdateTest: XCTestCase {
     let bundle = App.Bundle(
       version: Version(versionNumber: "1.0", buildNumber: nil), name: name,
       bundleIdentifier: "test.auto.\(name)",
-      fileURL: FileManager.default.temporaryDirectory.appendingPathComponent("AutoFixtures/\(name).app"),
+      fileURL: FileManager.default.temporaryDirectory.appendingPathComponent(
+        "AutoFixtures/\(name).app"),
       source: .sparkle, modificationDate: Date(timeIntervalSince1970: 0))
     let action: App.Update.Action =
       install ? .builtIn { _ in } : .external(label: "Its Store") { _ in }
@@ -54,7 +55,8 @@ final class AutoUpdateTest: XCTestCase {
     XCTAssertFalse(prefs.autoUpdates(chatGPT), "off by default")
     try prefs.set(.autoUpdate, true, for: chatGPT, caller: "gui")
     XCTAssertTrue(prefs.autoUpdates(chatGPT))
-    XCTAssertEqual(defaults.stringArray(forKey: AppPreferences.autoUpdateKey), [chatGPT.fileURL.path])
+    XCTAssertEqual(
+      defaults.stringArray(forKey: AppPreferences.autoUpdateKey), [chatGPT.fileURL.path])
 
     let tailscale = app("Tailscale", install: false)
     XCTAssertThrowsError(try prefs.set(.autoUpdate, true, for: tailscale, caller: "gui"))
@@ -75,12 +77,14 @@ final class AutoUpdateTest: XCTestCase {
     XCTAssertTrue(change.on)
     XCTAssertFalse(change.previous)
     // An ignored app cannot be switched to automatic updates.
-    XCTAssertThrowsError(try prefs.set(.autoUpdate, true, for: blender.with(ignoredState: true), caller: "gui"))
+    XCTAssertThrowsError(
+      try prefs.set(.autoUpdate, true, for: blender.with(ignoredState: true), caller: "gui"))
 
     let latest = try XCTUnwrap(history.entries(limit: 1).first)
     XCTAssertEqual(latest.outcome, .settingChanged(setting: "ignore", on: true))
     XCTAssertEqual(latest.caller, "mcp-claude-code-1234")
-    XCTAssertNil(history.latestEntry(for: blender.fileURL), "setting changes never become a row's result")
+    XCTAssertNil(
+      history.latestEntry(for: blender.fileURL), "setting changes never become a row's result")
 
     prefs.undo(.ignore, for: blender.with(ignoredState: true))
     XCTAssertFalse(ignored.contains(blender.bundleIdentifier), "Undo puts the old value back")
@@ -89,7 +93,9 @@ final class AutoUpdateTest: XCTestCase {
 
   func testCandidatesSkipRunningIgnoredAndSwitchedOffApps() throws {
     let prefs = preferences()
-    let on = app("On"), running = app("Running"), off = app("Off")
+    let on = app("On")
+    let running = app("Running")
+    let off = app("Off")
     try prefs.set(.autoUpdate, true, for: on, caller: "gui")
     try prefs.set(.autoUpdate, true, for: running, caller: "gui")
     let ignoredCopy = app("Ignored")
@@ -105,14 +111,16 @@ final class AutoUpdateTest: XCTestCase {
     let activity = AgentActivity()
     let service = UpdateCheckingService(
       coordinator: StubCoordinator(), appStoreUpdateService: ReadyAppStore(), updating: updating)
-    let started = service.updateAutomatically([app("One"), app("Store", install: false)], activity: activity)
+    let started = service.updateAutomatically(
+      [app("One"), app("Store", install: false)], activity: activity)
     XCTAssertEqual(started.map(\.name), ["One"], "hand-offs never update automatically")
     XCTAssertEqual(updating.bulk, [true], "same bulk path as Update All")
     XCTAssertEqual(activity.job(for: app("One").fileURL.path)?.starter.caller, "upkeep")
   }
 
   func testAttachedCallersAreNamedInTheRecordedOutcome() {
-    let path = FileManager.default.temporaryDirectory.appendingPathComponent("Attach-\(UUID()).app").path
+    let path = FileManager.default.temporaryDirectory.appendingPathComponent("Attach-\(UUID()).app")
+      .path
     AgentActivity.shared.started(path, by: "mcp-codex-mcp-client-1")
     AgentActivity.shared.attach(path, caller: "mcp-claude-code-2")
     AgentActivity.shared.attach(path, caller: "mcp-claude-code-2")
@@ -122,7 +130,8 @@ final class AutoUpdateTest: XCTestCase {
       bundleIdentifier: "test.attach", fileURL: URL(fileURLWithPath: path), source: .sparkle,
       modificationDate: Date())
     let history = UpdateHistoryStore(fileURL: historyURL)
-    history.record(UpdateHistoryEntry(before: bundle, after: bundle, outcome: .updated(from: "1.0", to: "1.1")))
+    history.record(
+      UpdateHistoryEntry(before: bundle, after: bundle, outcome: .updated(from: "1.0", to: "1.1")))
     let entry = history.latestEntry(for: bundle.fileURL)
     XCTAssertEqual(CallerName.display(entry?.caller), "Codex")
     XCTAssertEqual(entry?.followers, ["mcp-claude-code-2"], "listed once, starter not repeated")
@@ -134,7 +143,9 @@ final class AutoUpdateTest: XCTestCase {
     let prefs = AppPreferences(
       defaults: defaults,
       setIgnoredState: { on, target in
-        apps = apps.map { $0.bundleIdentifier == target.bundleIdentifier ? $0.with(ignoredState: on) : $0 }
+        apps = apps.map {
+          $0.bundleIdentifier == target.bundleIdentifier ? $0.with(ignoredState: on) : $0
+        }
       }, history: nil)
     let service = ControlService(
       .init(
@@ -142,17 +153,22 @@ final class AutoUpdateTest: XCTestCase {
         updateAllCandidates: { [] }, updateAll: {}, updating: RecordingUpdating(), history: nil,
         preferences: prefs))
     let on = await service.handle(
-      ControlRequest(command: "set", args: ["target": apps[0].fileURL.path, "auto": "on"], caller: "mcp-codex-1"))
+      ControlRequest(
+        command: "set", args: ["target": apps[0].fileURL.path, "auto": "on"], caller: "mcp-codex-1")
+    )
     XCTAssertTrue(on.ok, on.message ?? "")
     XCTAssertEqual(on.data?["autoUpdate"], .bool(true))
     XCTAssertEqual(prefs.change(.autoUpdate, for: apps[0])?.caller, "mcp-codex-1")
 
     let both = await service.handle(
-      ControlRequest(command: "set", args: ["target": apps[0].bundleIdentifier, "ignore": "on"], caller: "cli-1"))
+      ControlRequest(
+        command: "set", args: ["target": apps[0].bundleIdentifier, "ignore": "on"], caller: "cli-1")
+    )
     XCTAssertEqual(both.data?["autoUpdate"], .bool(false), "ignore turned auto off")
 
     let refused = await service.handle(
-      ControlRequest(command: "set", args: ["target": apps[1].fileURL.path, "auto": "on"], caller: "cli-1"))
+      ControlRequest(
+        command: "set", args: ["target": apps[1].fileURL.path, "auto": "on"], caller: "cli-1"))
     XCTAssertFalse(refused.ok)
     let usage = await service.handle(
       ControlRequest(command: "set", args: ["target": apps[0].fileURL.path], caller: "cli-1"))
@@ -167,7 +183,8 @@ private final class RecordingUpdating: AppUpdating, @unchecked Sendable {
   func cancel(_ app: App) {}
   @MainActor func retryTermination(_ app: App) {}
   func state(for identifier: App.Bundle.Identifier) -> UpdateProgressState { .none }
-  @MainActor func states(for identifier: App.Bundle.Identifier) -> AsyncStream<UpdateProgressState> {
+  @MainActor func states(for identifier: App.Bundle.Identifier) -> AsyncStream<UpdateProgressState>
+  {
     AsyncStream { $0.finish() }
   }
   @MainActor func stateChanges(for identifier: App.Bundle.Identifier) -> UpdateStateFeed {
@@ -177,7 +194,8 @@ private final class RecordingUpdating: AppUpdating, @unchecked Sendable {
 
 @MainActor
 private final class StubCoordinator: UpdateCheckCoordinating {
-  let appProvider: any AppProviding = AppDataStore(userDefaults: UserDefaults(suiteName: "AutoUpdateTest.stub")!)
+  let appProvider: any AppProviding = AppDataStore(
+    userDefaults: UserDefaults(suiteName: "AutoUpdateTest.stub")!)
   var progressDelegate: (any UpdateCheckProgressReporting)?
   var checkCompletion: (@MainActor (UpdateCheckCompletion) -> Void)?
   func run(hardRefresh: Bool, origin: UpdateCheckOrigin) {}

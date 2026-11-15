@@ -15,7 +15,10 @@ struct LibrarySidebar: View {
 
   var body: some View {
     let content = viewModel.content(ignoringSearch: true)
-    List(selection: Binding(get: { viewModel.page }, set: { if let page = $0 { viewModel.page = page } })) {
+    List(
+      selection: Binding(
+        get: { viewModel.page }, set: { if let page = $0 { viewModel.page = page } })
+    ) {
       Section("To do") {
         row(.updates, count: content.updates.count, emphasised: true)
         row(.needsYou, count: content.needsYouCount, emphasised: true)
@@ -44,7 +47,8 @@ struct LibrarySidebar: View {
 
 extension UpdatesListViewModel {
   func content(ignoringSearch: Bool) -> LibraryContent {
-    ignoringSearch ? LibraryContent(apps: snapshot.apps, query: nil, isUpdating: updating.isUpdating) : content
+    ignoringSearch
+      ? LibraryContent(apps: snapshot.apps, query: nil, isUpdating: updating.isUpdating) : content
   }
 }
 
@@ -56,14 +60,20 @@ struct AgentActivityCard: View {
   @ObservedObject private var activity = AgentActivity.shared
 
   var body: some View {
-    if let app = apps.first(where: { updating.isUpdating($0) && CallerName.isAgent(activity.job(for: $0.fileURL.path)?.starter.caller) }),
+    if let app = apps.first(where: {
+      updating.isUpdating($0)
+        && CallerName.isAgent(activity.job(for: $0.fileURL.path)?.starter.caller)
+    }),
       let job = activity.job(for: app.fileURL.path)
     {
       ObservedUpdatePresentation(app: app, updating: updating) { presentation in
         VStack(alignment: .leading, spacing: Space.xs) {
-          Label("\(CallerName.display(job.starter.caller)) is updating \(app.name)", systemImage: "sparkle")
-            .font(.headline)
-            .labelStyle(.titleAndIcon)
+          Label(
+            "\(CallerName.display(job.starter.caller)) is updating \(app.name)",
+            systemImage: "sparkle"
+          )
+          .font(.headline)
+          .labelStyle(.titleAndIcon)
           Text(JobStep.summary(for: app, state: updating.state(for: app.identifier)))
             .font(.callout).foregroundStyle(.secondary)
           ProgressView(value: presentation.fraction)
@@ -104,7 +114,11 @@ struct StopJobButton: View {
     .buttonBorderShape(.capsule)
     .controlSize(.small)
     .disabled(!stoppable)
-    .help(stoppable ? "Stop this update. Nothing changes." : "Stop isn't available while the app is being replaced.")
+    .help(
+      stoppable
+        ? "Stop this update. Nothing changes."
+        : "Stop isn't available while the app is being replaced."
+    )
     .accessibilityIdentifier("job.stop")
   }
 }
@@ -137,7 +151,8 @@ enum JobStep {
   static func detail(step: Int, app: App) -> String? {
     switch step {
     case 1: "\(app.name) asks about unsaved work itself. Stop now and nothing changes"
-    case 2: "Takes a few seconds. Stop isn't available in this step. The old copy is kept until the new one is verified"
+    case 2:
+      "Takes a few seconds. Stop isn't available in this step. The old copy is kept until the new one is verified"
     default: nil
     }
   }

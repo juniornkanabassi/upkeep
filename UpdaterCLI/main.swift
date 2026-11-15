@@ -1,6 +1,6 @@
 // Copyright © 2026 Junior Nkana Bassi. Licensed under GPL-3.0; see LICENSE.md.
-// `updater` (Contents/Helpers/updater): controls the running Updater over its socket, after
-// Talk & Read's talkread helper. Exit codes: 0 ok, 1 Updater refused or failed, 2 usage,
+// `upkeep` (Contents/Helpers/upkeep): controls the running Upkeep over its socket, after
+// Talk & Read's talkread helper. Exit codes: 0 ok, 1 Upkeep refused or failed, 2 usage,
 // 3 app unavailable, 4 sandbox blocks socket, 5 busy or timeout.
 
 import Darwin
@@ -33,7 +33,7 @@ let commands: [Command] = [
   Command(
     name: "list",
     summary:
-      "List the apps Updater found, with installed and available versions, capability (install, vendorTool, handOff, unsupported) and any running job id. Read-only.",
+      "List the apps Upkeep found, with installed and available versions, capability (install, vendorTool, handOff, unsupported) and any running job id. Read-only.",
     example: "list --updates",
     params: [
       Param(name: "updates", kind: .switchFlag, help: "Only apps with an update waiting."),
@@ -54,7 +54,7 @@ let commands: [Command] = [
   Command(
     name: "update",
     summary:
-      "Update one app (bundle id or path) or all. Returns a job id per app; a target already updating returns its job as inProgress, and jobs sharing a tool wait their turn. Apps that update elsewhere come back as handOff with the label unless --allow-handoff is given; Update All never hands off. A running app is only quit after the user confirms in Updater; otherwise the job ends as needsQuit.",
+      "Update one app (bundle id or path) or all. Returns a job id per app; a target already updating returns its job as inProgress, and jobs sharing a tool wait their turn. Apps that update elsewhere come back as handOff with the label unless --allow-handoff is given; Update All never hands off. A running app is only quit after the user confirms in Upkeep; otherwise the job ends as needsQuit.",
     example: "update com.example.App",
     params: [
       Param(
@@ -71,7 +71,7 @@ let commands: [Command] = [
       "Without a job id: whether a check is running, how many updates wait, and recent jobs. With one: that job's state (waiting, running, updated, noChange, failed, needsQuit, needsPermission).",
     example: "status 3f2c…",
     params: [
-      Param(name: "job", kind: .string, help: "Job id from `updater update`.", positional: true),
+      Param(name: "job", kind: .string, help: "Job id from `upkeep update`.", positional: true),
       Param(name: "wait", kind: .integer, help: "Wait up to 50 seconds for a job or check.", minimum: 0, maximum: 50)
     ], timeout: 55),
   Command(
@@ -121,7 +121,7 @@ func fail(_ code: String, _ message: String, exit status: Int32) -> Never {
 }
 
 func usage(_ message: String, _ command: Command?) -> Never {
-  fail("usage", message + " Try: updater \(command?.name ?? "") --help", exit: 2)
+  fail("usage", message + " Try: upkeep \(command?.name ?? "") --help", exit: 2)
 }
 
 func text(_ value: JSONValue?) -> String? {
@@ -219,17 +219,17 @@ func jobLine(_ job: [String: JSONValue]) -> String {
 func help(_ command: Command? = nil) {
   guard let command else {
     print(
-      "updater <command> [options]   Control Updater from the shell. A closed Updater starts in the background with no window."
+      "upkeep <command> [options]   Control Upkeep from the shell. A closed Upkeep starts in the background with no window."
     )
     for command in commands where !command.mcpOnly {
       print(
         "  \(command.name.padding(toLength: 9, withPad: " ", startingAt: 0)) \(command.summary)")
     }
-    print("  help      This text; `updater <command> --help` for one command with an example.")
+    print("  help      This text; `upkeep <command> --help` for one command with an example.")
     print(
       "Global options: --json  --caller <name>  --request-id <id>  --timeout <seconds>  --help")
     print(
-      "Exit codes: 0 ok, 1 Updater refused or failed, 2 usage, 3 app unavailable, 4 sandbox blocks socket, 5 busy or timeout."
+      "Exit codes: 0 ok, 1 Upkeep refused or failed, 2 usage, 3 app unavailable, 4 sandbox blocks socket, 5 busy or timeout."
     )
     return
   }
@@ -239,12 +239,12 @@ func help(_ command: Command? = nil) {
   let flags = command.params.filter { !$0.positional }.map {
     $0.kind == .switchFlag ? "[--\($0.name)]" : "[--\($0.name) <\($0.name)>]"
   }
-  print((["updater", command.name] + positional + flags + ["[--json]"]).joined(separator: " "))
+  print((["upkeep", command.name] + positional + flags + ["[--json]"]).joined(separator: " "))
   print(command.summary)
   for param in command.params {
     print("  \(param.positional ? param.name : "--" + param.name): \(param.help)")
   }
-  print("Example: updater \(command.example)")
+  print("Example: upkeep \(command.example)")
 }
 
 func manifest() {
@@ -411,7 +411,7 @@ func appRunning(exact: String?) -> Bool {
     let running = String(cString: path)
     if let exact {
       if running == exact || running == "/private" + exact { return true }
-    } else if running.hasSuffix("/Updater.app/Contents/MacOS/Updater") {
+    } else if running.hasSuffix("/Upkeep.app/Contents/MacOS/Upkeep") {
       return true
     }
   }
@@ -436,7 +436,7 @@ func launchAndSend(_ request: ControlRequest, timeout: Double) throws -> Control
   guard lock >= 0, flock(lock, LOCK_EX) == 0 else {
     throw ControlError("launch_lock_failed", "Could not take the launch lock.")
   }
-  let own = inBundle ? app.appendingPathComponent("Contents/MacOS/Updater").path : nil
+  let own = inBundle ? app.appendingPathComponent("Contents/MacOS/Upkeep").path : nil
   if !appRunning(exact: own) {
     let launch = Process()
     launch.executableURL = URL(fileURLWithPath: "/usr/bin/open")
@@ -449,7 +449,7 @@ func launchAndSend(_ request: ControlRequest, timeout: Double) throws -> Control
     launch.waitUntilExit()
     guard launch.terminationStatus == 0 else {
       close(lock)
-      throw ControlError("app_not_running", "Updater is not running and could not be started.")
+      throw ControlError("app_not_running", "Upkeep is not running and could not be started.")
     }
   }
   close(lock)

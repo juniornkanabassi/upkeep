@@ -52,7 +52,9 @@ struct AppDetailSections: View {
           Text(lastResult.displaySummary).fixedSize(horizontal: false, vertical: true)
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Last result: " + lastResult.displaySummary.replacingOccurrences(of: "→", with: "to"))
+        .accessibilityLabel(
+          "Last result: " + lastResult.displaySummary.replacingOccurrences(of: "→", with: "to")
+        )
         .accessibilityIdentifier("detail.lastResult")
       }
     }
@@ -62,7 +64,9 @@ struct AppDetailSections: View {
 
   /// Nothing to explain for a plain installable update; everything else says why.
   private var explanation: String? {
-    if case .failed(let reason) = presentation { return "The last attempt didn't finish. \(reason)" }
+    if case .failed(let reason) = presentation {
+      return "The last attempt didn't finish. \(reason)"
+    }
     if app.isIgnored {
       return "Updates are ignored, so \(app.name) stays out of Updates and Needs You."
     }
@@ -116,14 +120,16 @@ struct AppDetailSections: View {
             .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
               Text(title).fontWeight(index == current ? .semibold : .regular)
-              if index == current || index == 2, let detail = JobStep.detail(step: index, app: app) {
+              if index == current || index == 2, let detail = JobStep.detail(step: index, app: app)
+              {
                 Text(detail).font(.callout).foregroundStyle(.secondary)
                   .fixedSize(horizontal: false, vertical: true)
               }
             }
           }
           .accessibilityElement(children: .combine)
-          .accessibilityValue(index < current ? "Done" : index == current ? "In progress" : "To come")
+          .accessibilityValue(
+            index < current ? "Done" : index == current ? "In progress" : "To come")
         }
       }
       .padding(Space.lg)
@@ -148,12 +154,15 @@ struct AppDetailSections: View {
       VStack(spacing: 0) {
         optionRow(
           .autoUpdate, title: "Update automatically",
-          detail: AllAppsTable.unavailableReason(.autoUpdate, app: app).map { "Not available. \($0)" }
+          detail: AllAppsTable.unavailableReason(.autoUpdate, app: app).map {
+            "Not available. \($0)"
+          }
             ?? "Upkeep installs new versions while the app is closed. Off by default")
         Divider()
         optionRow(
           .ignore, title: "Ignore updates",
-          detail: "Leaves it out of Updates, Needs You and the menu bar, and turns automatic updates off")
+          detail:
+            "Leaves it out of Updates, Needs You and the menu bar, and turns automatic updates off")
       }
       .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: Space.md))
       .overlay(RoundedRectangle(cornerRadius: Space.md).strokeBorder(.quaternary))
@@ -161,7 +170,9 @@ struct AppDetailSections: View {
     .accessibilityIdentifier("detail.options")
   }
 
-  private func optionRow(_ setting: AppPreferences.Setting, title: String, detail: String) -> some View {
+  private func optionRow(_ setting: AppPreferences.Setting, title: String, detail: String)
+    -> some View
+  {
     let unavailable = preferences == nil || AllAppsTable.unavailableReason(setting, app: app) != nil
     return HStack(alignment: .center, spacing: Space.md) {
       VStack(alignment: .leading, spacing: 2) {
@@ -199,7 +210,8 @@ struct AppDetailSections: View {
 
   private var companionsSection: some View {
     VStack(alignment: .leading, spacing: Space.sm) {
-      Text(app.bundle.kind == .driver ? "Comes with this driver" : "Comes with this app").font(.headline)
+      Text(app.bundle.kind == .driver ? "Comes with this driver" : "Comes with this app").font(
+        .headline)
       VStack(spacing: 0) {
         ForEach(Array(companions.enumerated()), id: \.offset) { index, companion in
           if index > 0 { Divider() }
@@ -227,7 +239,9 @@ struct AppDetailSections: View {
   private var detailsSection: some View {
     VStack(alignment: .leading, spacing: Space.sm) {
       Text("Details").font(.headline)
-      Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: Space.lg, verticalSpacing: Space.sm) {
+      Grid(
+        alignment: .leadingFirstTextBaseline, horizontalSpacing: Space.lg, verticalSpacing: Space.sm
+      ) {
         row("Installed", app.localizedVersionInformation?.rawCurrent ?? "Unknown")
         if app.availabilityUnknown {
           row("Available", "Unknown, only \(app.externalUpdaterName ?? "the vendor") knows")
@@ -240,7 +254,9 @@ struct AppDetailSections: View {
         }
         row("Checked with", app.isUpdaterItself ? "Not yet available" : app.sourceName)
         if app.updateAvailable {
-          row("Installed by", app.capability.isAutomatic ? "Upkeep" : app.externalUpdaterName ?? "\(app.name) itself")
+          row(
+            "Installed by",
+            app.capability.isAutomatic ? "Upkeep" : app.externalUpdaterName ?? "\(app.name) itself")
         }
         row("Location", (app.fileURL.path as NSString).abbreviatingWithTildeInPath)
       }

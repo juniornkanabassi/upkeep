@@ -52,7 +52,7 @@ final class VendorToolOperation: UpdateOperation, @unchecked Sendable {
   }
 
   private static let outOfScope =
-    "The vendor's updater would not update only this copy, so Updater does not run it."
+    "The vendor's updater would not update only this copy, so Upkeep does not run it."
   /// Where the user updates it instead (the vendor's own app, Microsoft AutoUpdate say).
   private var vendorUpdater: String { "the vendor's updater (\(lock))" }
 
@@ -86,7 +86,7 @@ final class VendorToolOperation: UpdateOperation, @unchecked Sendable {
           expected: self.expectedVersion)
       } catch {
         self.recordHandOff(
-          to: self.vendorUpdater, because: "Updater could not make its safety copy of the app.")
+          to: self.vendorUpdater, because: "Upkeep could not make its safety copy of the app.")
         return self.finish()
       }
       // The quit prompt can wait on the user for a long time: check the target again right

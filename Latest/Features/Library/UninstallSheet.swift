@@ -143,10 +143,15 @@ final class UninstallSheetModel: ObservableObject {
         needsAdmin: matching.contains(where: \.needsAdmin),
         personal: matching.contains(where: \.personalData))
     }
-    let helperNeedsPassword = items.contains { ($0.kind == .launchAgent || $0.kind == .system) && $0.needsAdmin }
+    let helperNeedsPassword = items.contains {
+      ($0.kind == .launchAgent || $0.kind == .system) && $0.needsAdmin
+    }
     return [
       make("app", "The app", "Moves to the Bin") { $0.kind == .app },
-      make("cache", "Caches", "Temporary files and website data the app can make again. Moves to the Bin") {
+      make(
+        "cache", "Caches",
+        "Temporary files and website data the app can make again. Moves to the Bin"
+      ) {
         $0.kind == .cache && !$0.personalData
       },
       make(
@@ -158,7 +163,10 @@ final class UninstallSheetModel: ObservableObject {
       make("prefs", "Preferences", "The app's settings files. Moves to the Bin") {
         $0.kind == .prefs && !$0.personalData
       },
-      make("personal", "Your settings and history", "Documents, history and data the app saved. Kept unless you tick it") {
+      make(
+        "personal", "Your settings and history",
+        "Documents, history and data the app saved. Kept unless you tick it"
+      ) {
         $0.personalData
       },
     ].compactMap { $0 }
@@ -183,18 +191,23 @@ struct UninstallSheet: View {
         header(
           subtitle: model.needsPassword
             ? "Upkeep asks for your Mac password first. If you cancel, nothing changes. If \(model.app.name) is open, quit it first."
-            : "Nothing moves until you click Move to Bin. If \(model.app.name) is open, quit it first.")
+            : "Nothing moves until you click Move to Bin. If \(model.app.name) is open, quit it first."
+        )
         ScrollView {
           VStack(alignment: .leading, spacing: Space.md) {
             if let note = model.note {
-              CalloutView(symbol: "exclamationmark.triangle.fill", tint: Color(nsColor: .systemOrange)) {
+              CalloutView(
+                symbol: "exclamationmark.triangle.fill", tint: Color(nsColor: .systemOrange)
+              ) {
                 Text(note)
               }
             }
             if model.phase == .loading { ProgressView().frame(maxWidth: .infinity) }
             ForEach(model.groups) { group in groupCard(group) }
-            Label("The app and your files can be put back from the Bin.", systemImage: "info.circle")
-              .foregroundStyle(.secondary)
+            Label(
+              "The app and your files can be put back from the Bin.", systemImage: "info.circle"
+            )
+            .foregroundStyle(.secondary)
           }
           .padding(.horizontal, Space.xxl)
           .padding(.bottom, Space.md)
@@ -254,7 +267,9 @@ struct UninstallSheet: View {
         DisclosureGroup(
           isExpanded: Binding(
             get: { model.expanded.contains(group.id) },
-            set: { if $0 { model.expanded.insert(group.id) } else { model.expanded.remove(group.id) } })
+            set: {
+              if $0 { model.expanded.insert(group.id) } else { model.expanded.remove(group.id) }
+            })
         ) {
           VStack(alignment: .leading, spacing: 2) {
             ForEach(group.items, id: \.path) { item in
@@ -286,13 +301,15 @@ struct UninstallSheet: View {
       header(
         subtitle: failed.isEmpty
           ? "\(LibraryContent.count(moved.count, "item")) moved to the Bin. They can be put back from there."
-          : "\(LibraryContent.count(moved.count, "item")) moved to the Bin. \(LibraryContent.count(failed.count, "item")) stayed where \(failed.count == 1 ? "it was" : "they were").")
+          : "\(LibraryContent.count(moved.count, "item")) moved to the Bin. \(LibraryContent.count(failed.count, "item")) stayed where \(failed.count == 1 ? "it was" : "they were")."
+      )
       ScrollView {
         VStack(alignment: .leading, spacing: Space.sm) {
           ForEach(outcomes) { outcome in
             HStack(alignment: .firstTextBaseline, spacing: Space.sm) {
               Image(systemName: outcome.removed ? "checkmark.circle" : "exclamationmark.circle")
-                .foregroundStyle(outcome.removed ? Color(nsColor: .systemGreen) : Color(nsColor: .systemOrange))
+                .foregroundStyle(
+                  outcome.removed ? Color(nsColor: .systemGreen) : Color(nsColor: .systemOrange))
               VStack(alignment: .leading, spacing: 2) {
                 Text((outcome.path as NSString).abbreviatingWithTildeInPath)
                   .font(.callout.monospaced()).fixedSize(horizontal: false, vertical: true)

@@ -146,17 +146,17 @@ extension App {
     if bundle.kind == .driver, capability == .vendorTool {
       return "Update runs ARK's installer with one macOS administrator prompt, then checks the driver version on disk. Audio apps may briefly lose sound."
     }
-    if isUpdaterItself { return "This is Updater. It can't update itself yet." }
+    if isUpdaterItself { return "This is Upkeep. It can't update itself yet." }
     if isSourcePending { return "Checking for updates…" }
     if isActionable {
       let new = remoteVersion?.versionNumber.map { " \($0)" } ?? ""
       switch capability {
       case .install:
         return
-          "Update downloads version\(new) and installs it here. Updater keeps the old copy until it has checked the new version on disk."
+          "Update downloads version\(new) and installs it here. Upkeep keeps the old copy until it has checked the new version on disk."
       case .vendorTool:
         return
-          "Update runs the developer's own updater, then Updater checks the new version on disk."
+          "Update runs the developer's own updater, then Upkeep checks the new version on disk."
       case .handOff, .unsupported: break
       }
       if relaunchesToUpdate {
@@ -170,28 +170,28 @@ extension App {
       }
       if externalUpdaterName == HomebrewCheckerOperation.handOffLabel {
         return
-          "Updater can't run this one itself. It copies the brew upgrade command and opens Terminal: paste it and press Return."
+          "Upkeep can't run this one itself. It copies the brew upgrade command and opens Terminal: paste it and press Return."
       }
       if externalUpdaterName == name {
         return "\(name) updates itself. Open it and use its own update command."
       }
       return
-        "Updater can't install this one itself. Open \(externalUpdaterName ?? "the updater") and finish the update there."
+        "Upkeep can't install this one itself. Open \(externalUpdaterName ?? "the updater") and finish the update there."
     }
     switch updateStatus {
     case .current: return "You have the latest version."
     case .needsNewerMacOS(let macOS):
       let new = remoteVersion?.versionNumber.map { "Version \($0)" } ?? "A newer version"
       return
-        "\(new) is available but needs macOS \(macOS) or later, so Updater won't offer it on this Mac."
+        "\(new) is available but needs macOS \(macOS) or later, so Upkeep won't offer it on this Mac."
     case .ready, .elsewhere, .checkInVendor, .checking, .unknown: break
     }
-    if let error { return "Updater couldn't check this app: \(error.localizedDescription)" }
+    if let error { return "Upkeep couldn't check this app: \(error.localizedDescription)" }
     if remoteVersion == nil {
-      return "Updater can't find an update source for this app. Check the app or its website."
+      return "Upkeep can't find an update source for this app. Check the app or its website."
     }
     return
-      "Updater can't compare the installed version with the latest one, so it doesn't know whether this app is up to date."
+      "Upkeep can't compare the installed version with the latest one, so it doesn't know whether this app is up to date."
   }
 
   /// Who provides the version information, for "Updates via".

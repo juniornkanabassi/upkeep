@@ -5,7 +5,7 @@ import SwiftUI
 
 struct LicensesView: View {
   private enum License: String, CaseIterable {
-    case updater = "Updater"
+    case updater = "Upkeep"
     case sparkle = "Sparkle"
 
     var resource: (name: String, extension: String) {
@@ -30,7 +30,7 @@ struct LicensesView: View {
   var body: some View {
     VStack(alignment: .leading, spacing: Space.lg) {
       VStack(alignment: .leading, spacing: Space.sm) {
-        Text("Updater is based on Latest by Max Langer and the Ertyoii fork")
+        Text("Upkeep is based on Latest by Max Langer and the Ertyoii fork")
           .font(.headline)
         Text("Modifications © 2026 Junior Nkana Bassi. Upstream notices are retained.")
         Text(

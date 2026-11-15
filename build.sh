@@ -1,6 +1,6 @@
 #!/bin/zsh
-# Signed Release build of Updater. Build products stay out of the iCloud-synced folder.
-# Usage: zsh build.sh      Output: ../Outputs/Updater-<version>.zip
+# Signed Release build of Upkeep (formerly Updater). Build products stay out of the iCloud-synced folder.
+# Usage: zsh build.sh      Output: ../Outputs/Upkeep-<version>.zip
 set -euo pipefail
 SOURCE_ROOT="${0:A:h}"
 DERIVED="${UPDATER_BUILD_DIR:-/private/tmp/updater-build}"
@@ -10,9 +10,9 @@ IDENTITY="${UPDATER_SIGN_IDENTITY:-Apple Development: Junior Nkana Bassi (SXSQY4
 APP_ID="com.juniornkanabassi.Updater"
 HELPER_ID="$APP_ID.helper"
 PRODUCTS="$DERIVED/Build/Products/Release"
-APP="$PRODUCTS/Updater.app"
+APP="$PRODUCTS/Upkeep.app"
 HELPER="$APP/Contents/Resources/UpdaterInstaller"
-CLI="$APP/Contents/Helpers/updater"
+CLI="$APP/Contents/Helpers/upkeep"
 
 # Stale products (an old App.icns, a renamed helper) must not end up in the zip.
 /bin/rm -rf "$PRODUCTS"
@@ -43,7 +43,7 @@ done
 
 VERSION="$(plist "$APP/Contents/Info.plist" CFBundleShortVersionString)"
 mkdir -p "$OUTPUT_ROOT"
-ZIP="$OUTPUT_ROOT/Updater-$VERSION.zip"
+ZIP="$OUTPUT_ROOT/Upkeep-$VERSION.zip"
 /bin/rm -f "$ZIP"
 /usr/bin/ditto -c -k --keepParent "$APP" "$ZIP"
-print "Built Updater $VERSION: $ZIP"
+print "Built Upkeep $VERSION: $ZIP"

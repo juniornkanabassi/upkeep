@@ -14,7 +14,7 @@ case "$MODE" in
   run|--debug|debug|--logs|logs|--telemetry|telemetry|--verify|verify|--uat|uat) ;;
   *) usage >&2; exit 2 ;;
 esac
-APP_NAME="Updater"
+APP_NAME="Upkeep"
 PROJECT="Latest.xcodeproj"
 SCHEME="Updater"
 CONFIGURATION="Debug"
@@ -41,7 +41,7 @@ RUNNING_PID="$(/usr/bin/pgrep -f "^$APP_BUNDLE/Contents/MacOS/$APP_NAME" | head 
 if [[ -n "$RUNNING_PID" ]]; then
   kill -TERM "$RUNNING_PID" 2>/dev/null || true  # NSApplication treats SIGTERM as a normal quit request
   for _ in {1..20}; do kill -0 "$RUNNING_PID" 2>/dev/null || break; sleep 0.5; done
-  if kill -0 "$RUNNING_PID" 2>/dev/null; then echo "Updater ($RUNNING_PID) did not quit; not rebuilding." >&2; exit 1; fi
+  if kill -0 "$RUNNING_PID" 2>/dev/null; then echo "Upkeep ($RUNNING_PID) did not quit; not rebuilding." >&2; exit 1; fi
 fi
 
 rm -rf "$RESULT_BUNDLE"

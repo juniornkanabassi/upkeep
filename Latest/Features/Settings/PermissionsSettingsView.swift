@@ -37,7 +37,7 @@ enum PermissionKind: String, CaseIterable, Identifiable {
     case .backgroundItem:
       "The background item that installs App Store updates. Approve it under Login Items."
     case .notifications:
-      "Tells you when new updates appear. Updater asks after its first background check."
+      "Tells you when new updates appear. Upkeep asks after its first background check."
     case .fullDiskAccess:
       "Only needed to watch folders macOS protects, such as another user's Applications folder."
     }
@@ -168,7 +168,7 @@ struct PermissionsSettingsView: View {
           row(for: kind)
         }
       } footer: {
-        Text("Updater never asks for or stores your password.")
+        Text("Upkeep never asks for or stores your password.")
           .font(.caption)
           .foregroundStyle(.secondary)
       }

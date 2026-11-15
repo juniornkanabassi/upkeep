@@ -93,7 +93,7 @@ enum InstallHelper {
         throw LatestError.custom(
           title: "Update Helper Requires a Signed Build",
           description:
-            "This copy of Updater or its helper does not have the required code signature. Use a signed build of Updater, then enable the helper again."
+            "This copy of Upkeep or its helper does not have the required code signature. Use a signed build of Upkeep, then enable the helper again."
         )
       }
       return code

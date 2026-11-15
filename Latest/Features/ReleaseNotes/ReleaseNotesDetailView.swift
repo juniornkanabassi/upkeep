@@ -321,10 +321,10 @@ private struct DetailOverviewView: View {
           "Everything Is Up to Date", systemImage: "checkmark.circle",
           description: Text(
             summary.current == 1
-              ? "Updater checked 1 app." : "Updater checked \(summary.current) apps."))
+              ? "Upkeep checked 1 app." : "Upkeep checked \(summary.current) apps."))
       case .noUpdates(let summary):
         ContentUnavailableView(
-          "Nothing for Updater to Install", systemImage: "info.circle",
+          "Nothing for Upkeep to Install", systemImage: "info.circle",
           description: Text(summary.text))
       case .noMatches(let query):
         ContentUnavailableView.search(text: query)

@@ -80,7 +80,7 @@ class RunnerArgumentsTest(unittest.TestCase):
         self.assertEqual(list((self.root / "scratch").glob("test-defaults.*")), [])
 
     def test_verify_launches_only_its_binary_invisibly_and_stops_it(self):
-        executable = self.root / "scratch/DerivedData/Build/Products/Debug/Updater.app/Contents/MacOS/Updater"
+        executable = self.root / "scratch/DerivedData/Build/Products/Debug/Upkeep.app/Contents/MacOS/Upkeep"
         executable.parent.mkdir(parents=True)
         launched = self.root / "launched"
         executable.write_text(

@@ -199,7 +199,7 @@ extension AppEnvironment {
       control = (service, server)
     } catch {
       // Another copy already answers, or the folder is unusable; the window still works.
-      NSLog("Updater control socket not started: \(error)")
+      NSLog("Upkeep control socket not started: \(error)")
     }
   }
 }

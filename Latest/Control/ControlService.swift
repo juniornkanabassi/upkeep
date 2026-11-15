@@ -55,7 +55,7 @@ final class ControlService {
     case "history": return history(limit: Int(args["limit"] ?? "") ?? 20)
     default:
       return .failure(
-        "unknown_command", "Unknown command \(request.command). Run `updater --help`.")
+        "unknown_command", "Unknown command \(request.command). Run `upkeep --help`.")
     }
   }
 
@@ -76,7 +76,7 @@ final class ControlService {
     guard !isReady() else { return nil }
     return ControlResponse(
       ok: false, code: "not_ready",
-      message: "Updater is still running its first check since launch. Retry in a few seconds.",
+      message: "Upkeep is still running its first check since launch. Retry in a few seconds.",
       data: ["retryable": .bool(true)])
   }
 
@@ -113,7 +113,7 @@ final class ControlService {
       ok: true,
       message: finished
         ? "Check finished: \(waiting) update\(waiting == 1 ? "" : "s") available."
-        : "The check is still running; run `updater status` later.",
+        : "The check is still running; run `upkeep status` later.",
       data: [
         "checking": .bool(!finished), "finished": .bool(finished), "joined": .bool(joined),
         "updatesAvailable": JSONValue(waiting),
@@ -134,7 +134,7 @@ final class ControlService {
       : apps.filter { $0.bundleIdentifier == target }
     guard let app = matches.first else {
       return .failure(
-        "not_found", "No app at \(target) or with that bundle id. Run `updater list`.")
+        "not_found", "No app at \(target) or with that bundle id. Run `upkeep list`.")
     }
     guard matches.count == 1 else {
       // Identity is the file URL: two copies of one bundle id are two different targets.
@@ -210,7 +210,7 @@ final class ControlService {
     if app.capability == .handOff { return handOffEntry(app) }
     return entry(
       app, "notQueued",
-      ["message": "Not started. App Store updates may need the update helper; open Updater."])
+      ["message": "Not started. App Store updates may need the update helper; open Upkeep."])
   }
 
   private func handOffEntry(_ app: App) -> [String: JSONValue] {
@@ -305,7 +305,7 @@ final class ControlService {
       return ControlResponse(ok: true, data: data)
     }
     guard let job = describeJob(jobID) else {
-      return .failure("not_found", "No job \(jobID) since Updater started.")
+      return .failure("not_found", "No job \(jobID) since Upkeep started.")
     }
     return ControlResponse(ok: true, data: ["job": job])
   }
@@ -451,7 +451,7 @@ final class ControlService {
       return [
         "state": "handOff", "label": JSONValue(label),
         "message":
-          "Recorded before Updater kept hand-off details; it may not have opened anything.",
+          "Recorded before Upkeep kept hand-off details; it may not have opened anything.",
       ]
     }
     guard !note.opened else { return ["state": "handedOff", "label": .string(note.destination)] }

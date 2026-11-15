@@ -10,7 +10,7 @@ final class MCPServer: @unchecked Sendable {
   /// `mcp-<client>-<uuid>`: the client name from initialize lets the window say "Claude" or "Codex".
   private var caller = "mcp-" + UUID().uuidString
 
-  static let instructions = "Updater manages installed Mac apps. Check, list, update, then use status with wait for jobs. A running app may need a person's quit confirmation; needsQuit is not a reason to retry automatically. Hand-offs open another app only when explicitly requested. Uninstall previews never delete; uninstall confirmation requires the user's approval of the exact plan. Cancelling a call stops waiting, not an update already accepted by the app."
+  static let instructions = "Upkeep manages installed Mac apps. Check, list, update, then use status with wait for jobs. A running app may need a person's quit confirmation; needsQuit is not a reason to retry automatically. Hand-offs open another app only when explicitly requested. Uninstall previews never delete; uninstall confirmation requires the user's approval of the exact plan. Cancelling a call stops waiting, not an update already accepted by the app."
 
   static var tools: [[String: Any]] {
     commands.filter { $0.name != "uninstall" }.map { command in
@@ -73,7 +73,7 @@ final class MCPServer: @unchecked Sendable {
         lock.withLock { caller = "mcp-\(safe)-" + UUID().uuidString }
       }
       let version = params["protocolVersion"] as? String
-      result(["protocolVersion": version == "2025-06-18" ? "2025-06-18" : "2025-11-25", "capabilities": ["tools": [:]], "serverInfo": ["name": "updater", "version": "1"], "instructions": Self.instructions])
+      result(["protocolVersion": version == "2025-06-18" ? "2025-06-18" : "2025-11-25", "capabilities": ["tools": [:]], "serverInfo": ["name": "upkeep", "version": "1"], "instructions": Self.instructions])
     case "ping": result([:])
     case "tools/list": result(["tools": Self.tools])
     case "tools/call":

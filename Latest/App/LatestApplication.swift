@@ -59,7 +59,7 @@ struct LatestApplication: SwiftUI.App {
     }
     .windowResizability(.contentSize)
 
-    Window("About Updater", id: "about") {
+    Window("About Upkeep", id: "about") {
       AboutView()
         .modifier(ApplicationAppearanceModifier(appearance: appearance))
         .windowMinimizeBehavior(.disabled)
@@ -90,7 +90,7 @@ struct LatestMainWindowScene<Content: View>: Scene {
   @ViewBuilder var content: Content
 
   var body: some Scene {
-    Window("Updater", id: id) {
+    Window("Upkeep", id: id) {
       content.frame(
         minWidth: VisualMetrics.mainWindowMinWidth,
         minHeight: VisualMetrics.mainWindowMinHeight)

@@ -38,14 +38,14 @@ struct GeneralSettingsView: View {
         } label: {
           labelled(
             "Check for updates",
-            "Also on launch and after sleep. Updater never installs on its own.")
+            "Also on launch and after sleep. Upkeep never installs on its own.")
         }
         .accessibilityLabel("Check for updates")
         .accessibilityIdentifier("settings.checkInterval")
 
         preferenceOption(
           title: "Show in menu bar",
-          description: "Updater keeps running there when you close its window.",
+          description: "Upkeep keeps running there when you close its window.",
           isOn: $showsMenuBarItem
         )
       }
@@ -54,7 +54,7 @@ struct GeneralSettingsView: View {
         preferenceOption(
           title: "Always open App Store",
           description:
-            "Open the App Store for its updates instead of installing them here. Turn this off to use Updater's helper.",
+            "Open the App Store for its updates instead of installing them here. Turn this off to use Upkeep's helper.",
           isOn: $alwaysOpenAppStore
         )
         .accessibilityIdentifier("settings.appStore.manual")
@@ -64,7 +64,7 @@ struct GeneralSettingsView: View {
           } label: {
             labelled(
               "Install App Store updates here",
-              "Enables a helper so Updater can install App Store apps itself.")
+              "Enables a helper so Upkeep can install App Store apps itself.")
           }
         }
       }

@@ -36,10 +36,10 @@ struct AboutView: View {
       }
       .scaledToFit()
       .frame(width: 80, height: 80)
-      .accessibilityLabel("Updater icon")
+      .accessibilityLabel("Upkeep icon")
       .padding(.bottom, Space.sm)
 
-      Text("Updater")
+      Text("Upkeep")
         .font(.title2.bold())
 
       Text("Version \(version)")

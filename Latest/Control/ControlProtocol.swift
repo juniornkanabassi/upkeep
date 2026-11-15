@@ -360,7 +360,7 @@ final class ControlServer: @unchecked Sendable {
       let reason = errno
       close(probe)
       if live {
-        throw ControlError("already_running", "An Updater is already listening at \(path).")
+        throw ControlError("already_running", "An Upkeep is already listening at \(path).")
       }
       if reason != ECONNREFUSED && reason != ENOENT {
         throw ControlError(
@@ -412,7 +412,7 @@ final class ControlServer: @unchecked Sendable {
     var gid: gid_t = 0
     guard getpeereid(client, &uid, &gid) == 0, uid == allowedUID else {
       return finish(
-        client, .failure("forbidden", "Only the user running Updater may use its control socket."))
+        client, .failure("forbidden", "Only the user running Upkeep may use its control socket."))
     }
     switch readLine(client, limit: Self.maxRequest, until: uptime() + requestTimeout) {
     case .failure(let error):
@@ -433,7 +433,7 @@ final class ControlServer: @unchecked Sendable {
           client,
           .failure(
             "unsupported_version",
-            "This Updater speaks control protocol \(controlProtocolVersion); the request used \(request.version). Use the updater command from the same app."
+            "This Upkeep speaks control protocol \(controlProtocolVersion); the request used \(request.version). Use the upkeep command from the same app."
           ))
       }
       Task.detached { [self] in
@@ -503,10 +503,10 @@ enum ControlClient {
     _ = setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &noSignal, socklen_t(MemoryLayout<Int32>.size))
     guard connectSocket(address, length, fd: fd) else {
       if errno == ENOENT || errno == ECONNREFUSED {
-        throw ControlError("app_not_running", "Updater is not running (nothing at \(socketPath)).")
+        throw ControlError("app_not_running", "Upkeep is not running (nothing at \(socketPath)).")
       }
       if errno == EPERM || errno == EACCES {
-        throw ControlError("sandbox_blocked", "The sandbox blocks Updater's socket; use the MCP server or run outside the sandbox.")
+        throw ControlError("sandbox_blocked", "The sandbox blocks Upkeep's socket; use the MCP server or run outside the sandbox.")
       }
       throw errnoError("socket_connect_error", socketPath)
     }
@@ -527,7 +527,7 @@ enum ControlClient {
       case "too_large":
         throw ControlError(
           "response_too_large", "Reply exceeds \(ControlServer.maxResponse) bytes.")
-      default: throw ControlError("socket_read_error", "Updater closed the connection early.")
+      default: throw ControlError("socket_read_error", "Upkeep closed the connection early.")
       }
     }
   }
@@ -546,7 +546,7 @@ enum ControlClient {
     payload.append(10)
     let line = try exchange(payload, with: path, timeout: timeout)
     guard let response = try? JSONDecoder().decode(ControlResponse.self, from: line) else {
-      throw ControlError("bad_response", "Updater returned invalid JSON.")
+      throw ControlError("bad_response", "Upkeep returned invalid JSON.")
     }
     return response
   }

@@ -71,7 +71,7 @@ final class HomebrewUpgradeOperation: UpdateOperation, @unchecked Sendable {
         HomebrewPayload.unpacksWithBuiltInTools(download)
       else {
         return self.handOffBeforeChanges(
-          because: "The download needs an installer step Updater does not run.")
+          because: "The download needs an installer step Upkeep does not run.")
       }
       // A download can take long: definitions, targets and other copies are checked again
       // right before anything changes.
@@ -96,7 +96,7 @@ final class HomebrewUpgradeOperation: UpdateOperation, @unchecked Sendable {
           companions: [caskroom].compactMap { $0 }, mechanism: "homebrew", lockKey: self.lockKey,
           expected: self.expectedVersion)
       } catch {
-        self.handOffBeforeChanges(because: "Updater could not make its safety copy of the app.")
+        self.handOffBeforeChanges(because: "Upkeep could not make its safety copy of the app.")
         return
       }
       // From here brew may change the app: no cancel.
@@ -125,7 +125,7 @@ final class HomebrewUpgradeOperation: UpdateOperation, @unchecked Sendable {
 
   @MainActor private func handOffBeforeChanges(
     because reason: String =
-      "The cask now needs more than replacing this app (or no longer owns it), so Updater leaves it to brew."
+      "The cask now needs more than replacing this app (or no longer owns it), so Upkeep leaves it to brew."
   ) {
     recordHandOff(
       to: "Terminal: \(HomebrewCheckerOperation.adminCommand(for: token))", because: reason)

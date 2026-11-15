@@ -70,7 +70,7 @@ struct UninstallPlanner: Sendable {
       !id.hasPrefix("com.apple."), !isAppleSigned(app),
       !id.hasPrefix("com.juniornkanabassi."),
       !app.path.hasPrefix("/Applications/JuniorOS Apps/") else {
-      throw ControlError("protected_app", "Updater and protected system or JuniorOS apps cannot be uninstalled.")
+      throw ControlError("protected_app", "Upkeep and protected system or JuniorOS apps cannot be uninstalled.")
     }
     guard !isRunning(app) else { throw ControlError("app_running", "Quit the app before previewing its removal.") }
     let siblings = try copies(id).contains { URL(fileURLWithPath: $0).path != app.path }

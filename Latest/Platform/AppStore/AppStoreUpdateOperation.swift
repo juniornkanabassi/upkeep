@@ -108,7 +108,7 @@ final class AppStoreUpdateOperation: UpdateOperation, @unchecked Sendable {
       // with no quit check, backup or verification, so that route always hands off.
       guard self.usesVerifiedHelperInstall else {
         self.handOff(
-          because: "Before macOS 26.1 the App Store installs by itself, without Updater's checks.")
+          because: "Before macOS 26.1 the App Store installs by itself, without Upkeep's checks.")
         return self.finishOnMain()
       }
       guard await self.allowsInstall() else {
@@ -139,7 +139,7 @@ final class AppStoreUpdateOperation: UpdateOperation, @unchecked Sendable {
       }
       guard !self.isCancelled else { return self.finishOnMain() }
       do { try self.takeBackup() } catch {
-        self.handOff(because: "Updater could not make its safety copy of the app.")
+        self.handOff(because: "Upkeep could not make its safety copy of the app.")
         return self.finishOnMain()
       }
       // Discovery can change during preparation and the quit: check again right before
@@ -195,7 +195,7 @@ final class AppStoreUpdateOperation: UpdateOperation, @unchecked Sendable {
   }
 
   private static let notSoleCopy =
-    "Updater could not confirm that this is the only copy the App Store would update."
+    "Upkeep could not confirm that this is the only copy the App Store would update."
 
   /// Automation without --allow-handoff only learns that the App Store has it.
   @MainActor private func handOff(because reason: String) {

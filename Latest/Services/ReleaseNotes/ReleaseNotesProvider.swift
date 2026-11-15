@@ -744,7 +744,7 @@ class ReleaseNotesProvider {
       request.cachePolicy = .useProtocolCachePolicy
       request.timeoutInterval = 6
       request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
-      request.setValue("Updater", forHTTPHeaderField: "User-Agent")
+      request.setValue("Upkeep", forHTTPHeaderField: "User-Agent")
 
       let result = try await URLSessionReleaseNotesHTTPDataLoader().load(
         request,

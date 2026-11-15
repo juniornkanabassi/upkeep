@@ -77,19 +77,26 @@ struct AllAppsTable: View {
       .toggleStyle(.checkbox)
       .labelsHidden()
       .frame(width: Space.xxl, height: Space.xxl)
-      .accessibilityLabel(setting == .ignore ? "Ignore updates for \(app.name)" : "Update \(app.name) automatically")
+      .accessibilityLabel(
+        setting == .ignore ? "Ignore updates for \(app.name)" : "Update \(app.name) automatically")
     } else {
-      DashCell(reason: row.app == nil ? "A folder of apps. Choose an app inside it." : "Settings are unavailable.")
+      DashCell(
+        reason: row.app == nil
+          ? "A folder of apps. Choose an app inside it." : "Settings are unavailable.")
     }
   }
 
   /// Why a switch can't apply to this app, or nil when it can.
   @MainActor
   static func unavailableReason(_ setting: AppPreferences.Setting, app: App) -> String? {
-    if let parent = app.bundle.parent { return "Updates with \(parent), so it follows that app's settings." }
+    if let parent = app.bundle.parent {
+      return "Updates with \(parent), so it follows that app's settings."
+    }
     if app.isUpdaterItself { return "Upkeep can't update itself yet." }
     guard setting == .autoUpdate else { return nil }
-    if app.isIgnored { return "Updates are ignored. Stop ignoring \(app.name) to update it automatically." }
+    if app.isIgnored {
+      return "Updates are ignored. Stop ignoring \(app.name) to update it automatically."
+    }
     if AppPreferences.canAutoUpdate(app) { return nil }
     if app.isSourcePending { return "Still checking how \(app.name) updates." }
     if app.relaunchesToUpdate || app.externalUpdaterName == app.name {
@@ -211,7 +218,8 @@ struct HistoryPage: View {
   @State private var entries = [UpdateHistoryEntry]()
 
   var body: some View {
-    let filtered = query.isEmpty ? entries : entries.filter { $0.name.localizedCaseInsensitiveContains(query) }
+    let filtered =
+      query.isEmpty ? entries : entries.filter { $0.name.localizedCaseInsensitiveContains(query) }
     List {
       ForEach(Self.days(filtered), id: \.0) { day, entries in
         Section(day) {
@@ -236,8 +244,10 @@ struct HistoryPage: View {
     }
     .task { entries = history.entries(limit: 500) }
     .onReceive(
-      NotificationCenter.default.publisher(for: UpdateHistoryStore.didRecordNotification, object: history)
-        .receive(on: DispatchQueue.main)
+      NotificationCenter.default.publisher(
+        for: UpdateHistoryStore.didRecordNotification, object: history
+      )
+      .receive(on: DispatchQueue.main)
     ) { _ in entries = history.entries(limit: 500) }
     .accessibilityIdentifier("library.history")
   }
@@ -251,7 +261,11 @@ struct HistoryPage: View {
         ? "Today"
         : calendar.isDateInYesterday(entry.date)
           ? "Yesterday" : entry.date.formatted(.dateTime.weekday(.wide).day().month(.wide))
-      if groups.last?.0 == title { groups[groups.count - 1].1.append(entry) } else { groups.append((title, [entry])) }
+      if groups.last?.0 == title {
+        groups[groups.count - 1].1.append(entry)
+      } else {
+        groups.append((title, [entry]))
+      }
     }
     return groups
   }
@@ -274,8 +288,10 @@ private struct HistoryRow: View {
       VStack(alignment: .trailing, spacing: 2) {
         Label(presentation.status, systemImage: presentation.symbol)
           .foregroundStyle(presentation.tint)
-        Text("\(CallerName.display(entry.caller)), \(entry.date.formatted(date: .omitted, time: .shortened))")
-          .font(.callout).foregroundStyle(.secondary)
+        Text(
+          "\(CallerName.display(entry.caller)), \(entry.date.formatted(date: .omitted, time: .shortened))"
+        )
+        .font(.callout).foregroundStyle(.secondary)
       }
     }
     .padding(.vertical, Space.xs)
@@ -296,7 +312,8 @@ extension UpdateHistoryEntry {
 
   @MainActor
   var presentation: Presentation {
-    let done = Color(nsColor: .systemGreen), failed = Color(nsColor: .systemRed)
+    let done = Color(nsColor: .systemGreen)
+    let failed = Color(nsColor: .systemRed)
     let followed = (followers ?? []).map(CallerName.display)
     let satisfied =
       followed.isEmpty
@@ -328,17 +345,24 @@ extension UpdateHistoryEntry {
       return Presentation(
         title: "Opened \(destination) to update \(name)",
         detail: handOff?.opened == false ? (handOff?.reason ?? "") : "Finish the update there.",
-        status: handOff?.opened == false ? "Not opened" : "Handed off", symbol: "arrow.up.forward.app",
+        status: handOff?.opened == false ? "Not opened" : "Handed off",
+        symbol: "arrow.up.forward.app",
         tint: .secondary)
     case .uninstalled:
       return Presentation(
         title: "Uninstalled \(name)", detail: "Moved to the Bin.", status: "Done",
         symbol: "checkmark.circle", tint: done)
     case .settingChanged(let setting, let on):
-      let what = setting == "ignore" ? (on ? "Ignored \(name) updates" : "Stopped ignoring \(name) updates")
-        : (on ? "Turned on automatic updates for \(name)" : "Turned off automatic updates for \(name)")
-      let how = CallerName.isAgent(caller) ? "Set through \(CallerName.display(caller)). Undo from \(name)'s details" : "Set in Upkeep"
-      return Presentation(title: what, detail: how, status: "Setting changed", symbol: "circle", tint: .secondary)
+      let what =
+        setting == "ignore"
+        ? (on ? "Ignored \(name) updates" : "Stopped ignoring \(name) updates")
+        : (on
+          ? "Turned on automatic updates for \(name)" : "Turned off automatic updates for \(name)")
+      let how =
+        CallerName.isAgent(caller)
+        ? "Set through \(CallerName.display(caller)). Undo from \(name)'s details" : "Set in Upkeep"
+      return Presentation(
+        title: what, detail: how, status: "Setting changed", symbol: "circle", tint: .secondary)
     }
   }
 }
