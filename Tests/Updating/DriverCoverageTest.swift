@@ -31,6 +31,21 @@ final class DriverCoverageTest: XCTestCase {
     try (Data([0xca, 0xfe, 0xba, 0xbe]) + plist).write(to: url)
   }
 
+  /// Sony's kext has an empty name; Blackmagic's extensions use their bundle IDs as names.
+  func testDriverNamesAreReadable() {
+    func name(_ info: [String: Any], _ file: String) -> String {
+      readableDriverName(info: info, url: URL(fileURLWithPath: "/Library/x/" + file))
+    }
+    XCTAssertEqual(name(["CFBundleName": ""], "SONYDeviceType04.kext"), "SONYDeviceType04")
+    XCTAssertEqual(
+      name(["CFBundleName": "com.blackmagic-design.desktopvideo.Network.DExt"],
+        "com.blackmagic-design.desktopvideo.Network.DExt.dext"), "Network driver")
+    XCTAssertEqual(
+      name([:], "com.blackmagic-design.desktopvideo.BlackmagicCameraExtension.systemextension"),
+      "BlackmagicCameraExtension")
+    XCTAssertEqual(name(["CFBundleName": "ARK"], "ARK.driver"), "ARK")
+  }
+
   func testDiscoversDriversAndAssociatesActiveExtensionWithHost() throws {
     let root = try root()
     let appURL = root.appendingPathComponent("Camera.app")

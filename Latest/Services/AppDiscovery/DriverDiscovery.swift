@@ -89,8 +89,7 @@ enum DriverDiscovery {
         : id.lowercased().contains("blackmagic") ? "Blackmagic Design"
         : id.hasPrefix("com.apple.") ? "Apple" : id.split(separator: ".").prefix(2).joined(separator: "."))
     return App.Bundle(version: version,
-      name: info["CFBundleDisplayName"] as? String ?? info["CFBundleName"] as? String
-        ?? url.deletingPathExtension().lastPathComponent,
+      name: readableDriverName(info: info, url: url),
       bundleIdentifier: id, fileURL: url, source: .driver, kind: .driver, vendor: vendor)
   }
 
@@ -131,6 +130,20 @@ enum DriverDiscovery {
     }
     return versions.count == 1 ? versions.first : nil
   }
+}
+
+/// The bundle's display name, unless it is empty or just its bundle ID (Sony's kext has an
+/// empty name, Blackmagic's extensions use their IDs): then the last meaningful ID part.
+func readableDriverName(info: [String: Any], url: URL) -> String {
+  let given = [info["CFBundleDisplayName"], info["CFBundleName"]].compactMap { $0 as? String }
+    .first { !$0.isEmpty && !($0.contains(".") && !$0.contains(" ")) }
+  if let given { return given }
+  let file = url.deletingPathExtension().lastPathComponent
+  var parts = file.split(separator: ".").map(String.init)
+  let isDriverExtension = parts.last == "DExt"
+  if isDriverExtension { parts.removeLast() }
+  guard parts.count > 1, let last = parts.last else { return file }
+  return isDriverExtension ? "\(last) driver" : last
 }
 
 /// Known companion families, plus helpers in an outer app or a named product folder.
