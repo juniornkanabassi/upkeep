@@ -187,6 +187,31 @@ final class ControlTest: XCTestCase {
 
   // MARK: Service through the socket
 
+  /// list --kind app|driver|all selects by item kind; drivers carry kind and parent.
+  func testListKindSelectsAppsOrDrivers() async throws {
+    let harness = try harness()
+    let app = makeTestApp(name: "Plain", version: "1")
+    let driver = App(
+      bundle: App.Bundle(
+        version: Version(versionNumber: "13.6.0", buildNumber: nil), name: "ARK",
+        bundleIdentifier: "com.rogueamoeba.ARK.driver",
+        fileURL: URL(fileURLWithPath: "/Library/Audio/Plug-Ins/HAL/ARK.driver"), source: .none,
+        kind: .driver, parent: "SoundSource"),
+      update: nil, isIgnored: false)
+    harness.apps = [app, driver]
+    func names(_ kind: String) async throws -> [String] {
+      let response = try await request(harness, "list", ["kind": kind])
+      let rows = response.data?["apps"]?.arrayValue ?? []
+      return rows.compactMap { $0.objectValue?["name"]?.stringValue }
+    }
+    let apps = try await names("app")
+    let drivers = try await names("driver")
+    let all = try await names("all")
+    XCTAssertEqual(apps, ["Plain"])
+    XCTAssertEqual(drivers, ["ARK"])
+    XCTAssertEqual(all.sorted(), ["ARK", "Plain"])
+  }
+
   func testListCheckUpdateStatusAndHistoryGoThroughTheScheduler() async throws {
     let harness = try harness()
     let gate = AsyncStream<Void>.makeStream()

@@ -40,7 +40,7 @@ final class ControlService {
       // Versions are only known once the first check has run; names after discovery.
       if let notReady = await ready(needsCheck: updatesOnly) { return notReady }
       guard ["app", "driver", "all"].contains(args["kind"] ?? "app") else { return .failure("usage", "Unknown kind.") }
-      return list(updatesOnly: updatesOnly, full: Self.flag(args["full"]), driversOnly: args["kind"] == "driver")
+      return list(updatesOnly: updatesOnly, full: Self.flag(args["full"]), kind: args["kind"] ?? "app")
     case "check": return await check(args)
     case "update":
       if let notReady = await ready(needsCheck: true) { return notReady }
@@ -79,15 +79,15 @@ final class ControlService {
 
   // MARK: Commands
 
-  private func list(updatesOnly: Bool, full: Bool, driversOnly: Bool) -> ControlResponse {
+  private func list(updatesOnly: Bool, full: Bool, kind: String) -> ControlResponse {
     let apps = dependencies.apps()
-      .filter { _ in !driversOnly }
+      .filter { kind == "all" || $0.bundle.kind.rawValue == kind }
       .filter { !updatesOnly || (($0.updateAvailable || $0.availabilityUnknown) && !$0.isIgnored) }
       .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
     var data: [String: JSONValue] = [
       "apps": .array(apps.map { app in
         guard !full, let object = describe(app).objectValue else { return describe(app) }
-        let fields: Set<String> = ["name", "bundleId", "path", "installed", "available", "availability", "capability", "jobId", "handOffLabel", "ignored"]
+        let fields: Set<String> = ["name", "bundleId", "path", "installed", "available", "availability", "capability", "jobId", "handOffLabel", "ignored", "kind", "parent"]
         return .object(object.filter { fields.contains($0.key) })
       }), "count": JSONValue(apps.count),
     ]
