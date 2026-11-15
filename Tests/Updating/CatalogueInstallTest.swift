@@ -308,6 +308,13 @@ final class CatalogueInstallTest: XCTestCase {
 
   // MARK: Rules as pure functions
 
+  /// A root-owned bundle (Shottr was) is an administrator matter, not App Management.
+  func testBundlesOwnedByAnotherAccountAreAdministratorMatters() throws {
+    XCTAssertTrue(
+      UpdateQueue.isOwnedByAnotherAccount(URL(fileURLWithPath: "/System/Applications/Calculator.app")))
+    XCTAssertFalse(UpdateQueue.isOwnedByAnotherAccount(FileManager.default.temporaryDirectory))
+  }
+
   /// Zotero (bzip2) and Shottr (xz) ship compressed disk images whose first bytes look like a
   /// compressed tar; the image trailer must win, or the update fails as "Unrecognized archive".
   func testCompressedDiskImagesAreNotMistakenForTar() throws {

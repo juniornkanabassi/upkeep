@@ -276,6 +276,11 @@ class UpdateQueue: OperationQueue, @unchecked Sendable {
     return outcome
   }
 
+  static func isOwnedByAnotherAccount(_ url: URL) -> Bool {
+    let owner = (try? FileManager.default.attributesOfItem(atPath: url.path))?[.ownerAccountID]
+    return (owner as? NSNumber).map { $0.uint32Value != getuid() } ?? false
+  }
+
   /// Success is never taken from the installer's word: `updated` needs the version on
   /// disk at the exact URL to have changed. User cancellation records nothing.
   static func outcome(of operation: UpdateOperation, before: App.Bundle, after: App.Bundle?)
@@ -306,6 +311,11 @@ class UpdateQueue: OperationQueue, @unchecked Sendable {
         || (nsError.domain == NSPOSIXErrorDomain
           && [Int(EPERM), Int(EACCES)].contains(nsError.code))
       {
+        // A bundle another account owns (Shottr was root:wheel) is an admin matter, not
+        // App Management; sending people to that setting never fixed it.
+        if Self.isOwnedByAnotherAccount(before.fileURL) {
+          return .needsPermission(kind: "administrator")
+        }
         return .needsPermission(kind: "appManagement")
       }
       return .failed(reason: error.localizedDescription, logPath: nil)
