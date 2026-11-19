@@ -938,8 +938,10 @@ final class HomebrewTest: XCTestCase {
     let brew = Homebrew.locate()?.path ?? "brew"
     XCTAssertEqual(
       RexTerminal.arguments(for: ["a", "b"], sessionExists: true),
-      ["window", "new", "-s", "agents", "brew upgrade", "--focus=false", "--keep-open", "--",
-       brew, "upgrade", "--cask", "a", "b"])
+      [
+        "window", "new", "-s", "agents", "brew upgrade", "--focus=false", "--keep-open", "--",
+        brew, "upgrade", "--cask", "a", "b",
+      ])
     XCTAssertEqual(
       RexTerminal.arguments(for: ["a"], sessionExists: false),
       ["new", "agents", "--window", "brew a", "--keep-open", "--", brew, "upgrade", "--cask", "a"])
