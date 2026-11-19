@@ -7,7 +7,7 @@ How to review changes to Upkeep. The shared rules (lanes, check results, finding
 - An app is lost: the old bundle is removed before the new one is verified.
 - Success is reported without the installed bundle's version changing on disk.
 - A running app is not quit cleanly, or its unsaved-work prompt is skipped.
-- Admin rights are stored or asked for outside the system prompt.
+- Admin rights are stored, or asked for outside the system prompt. One exception (Junior, 19 Nov 2026): Homebrew casks that need the Mac password get it through Upkeep's own password box via sudo's askpass hook, only with a one-time key Upkeep issued for that run; the password is never saved, logged or cached.
 - A test updates one of Junior's real apps.
 
 ## Always High

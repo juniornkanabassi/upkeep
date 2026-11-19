@@ -946,4 +946,21 @@ final class HomebrewTest: XCTestCase {
       RexTerminal.arguments(for: ["a"], sessionExists: false),
       ["new", "agents", "--window", "brew a", "--keep-open", "--", brew, "upgrade", "--cask", "a"])
   }
+
+  /// brew's sudo asks Upkeep only through a key Upkeep issued for that run, for 30 minutes.
+  @MainActor func testAskpassKeysAreOneRunAndExpire() throws {
+    let now = Date()
+    guard let script = Askpass.prepare(for: ["fixture"], now: now) else {
+      throw XCTSkip("No bundled upkeep helper in this host.")
+    }
+    defer { try? FileManager.default.removeItem(at: script) }
+    let key = script.pathExtension
+    XCTAssertEqual(Askpass.casks(for: key, now: now), ["fixture"])
+    XCTAssertNil(Askpass.casks(for: key, now: now.addingTimeInterval(31 * 60)))
+    XCTAssertNil(Askpass.casks(for: "made-up", now: now))
+    XCTAssertTrue(try String(contentsOf: script, encoding: .utf8).contains("askpass \(key)"))
+    XCTAssertTrue(
+      RexTerminal.arguments(for: ["fixture"], sessionExists: true, askpass: script)
+        .contains("SUDO_ASKPASS=\(script.path)"))
+  }
 }

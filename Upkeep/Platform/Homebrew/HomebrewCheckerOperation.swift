@@ -155,7 +155,8 @@ final class HomebrewCheckerOperation: Sendable {
 
 /// Runs brew upgrades Upkeep cannot do itself in a background tab of Junior's Rex session
 /// `agents`, so no command has to be pasted. Upgrades asked for together share one tab and
-/// one brew run (one password prompt, no brew lock contention).
+/// one brew run (one password prompt, no brew lock contention). When brew needs the Mac
+/// password, sudo runs Upkeep's askpass script, and Upkeep asks for it in its own window.
 @MainActor
 enum RexTerminal {
   nonisolated static let session = "agents"
@@ -180,10 +181,14 @@ enum RexTerminal {
     }
   }
 
-  nonisolated static func arguments(for tokens: [String], sessionExists: Bool) -> [String] {
+  nonisolated static func arguments(
+    for tokens: [String], sessionExists: Bool, askpass: URL? = nil
+  ) -> [String] {
     let label = tokens.count == 1 ? "brew \(tokens[0])" : "brew upgrade"
     let brew = Homebrew.locate()?.path ?? "brew"
-    let command = ["--keep-open", "--", brew, "upgrade", "--cask"] + tokens
+    // brew keeps SUDO_ASKPASS and then runs sudo -A, which asks the script, not the tab.
+    let env = askpass.map { ["/usr/bin/env", "SUDO_ASKPASS=\($0.path)"] } ?? []
+    let command = ["--keep-open", "--"] + env + [brew, "upgrade", "--cask"] + tokens
     return sessionExists
       ? ["window", "new", "-s", session, label, "--focus=false"] + command
       : ["new", session, "--window", label] + command
@@ -191,10 +196,12 @@ enum RexTerminal {
 
   private static func run(_ tokens: [String]) {
     guard let executable, !tokens.isEmpty else { return }
+    let askpass = Askpass.prepare(for: tokens)
     Task.detached {
       let list = (try? output(executable, ["ls", "--json"])) ?? ""
       let exists = list.contains("\"label\": \"\(session)\"")
-      _ = try? output(executable, arguments(for: tokens, sessionExists: exists))
+      _ = try? output(
+        executable, arguments(for: tokens, sessionExists: exists, askpass: askpass))
     }
   }
 
@@ -211,6 +218,74 @@ enum RexTerminal {
     let data = pipe.fileHandleForReading.readDataToEndOfFile()
     process.waitUntilExit()
     return String(decoding: data, as: UTF8.self)
+  }
+}
+
+/// sudo's askpass hook for brew runs Upkeep started. The script calls `upkeep askpass` with a
+/// one-time key; only a key Upkeep issued in the last 30 minutes opens the password box, so
+/// nothing else can make Upkeep ask. The password is held only to answer that one request and
+/// is never saved or logged (Junior's choice, 19 Nov 2026, replacing the 2 Nov hand-off rule).
+@MainActor
+enum Askpass {
+  private static var keys: [String: (casks: [String], expires: Date)] = [:]
+  static var script: URL { ControlPaths.dataRoot.appendingPathComponent("askpass") }
+
+  /// Writes the askpass script for one brew run; nil (brew asks in the tab) if it can't.
+  static func prepare(for casks: [String], now: Date = Date()) -> URL? {
+    let cli = Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/upkeep")
+    guard FileManager.default.isExecutableFile(atPath: cli.path) else { return nil }
+    keys = keys.filter { $0.value.expires > now }
+    // Scripts of expired keys go with them.
+    let folder = ControlPaths.dataRoot
+    for name in (try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []
+    where name.hasPrefix("askpass.") && keys[String(name.dropFirst(8))] == nil {
+      try? FileManager.default.removeItem(at: folder.appendingPathComponent(name))
+    }
+    let key = UUID().uuidString
+    keys[key] = (casks, now.addingTimeInterval(30 * 60))
+    let body = "#!/bin/sh\nexec '\(cli.path)' askpass \(key)\n"
+    do {
+      try FileManager.default.createDirectory(
+        at: ControlPaths.dataRoot, withIntermediateDirectories: true,
+        attributes: [.posixPermissions: 0o700])
+      // One script per key, so two runs never overwrite each other's.
+      let url = script.appendingPathExtension(key)
+      try Data(body.utf8).write(to: url, options: .atomic)
+      try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: url.path)
+      return url
+    } catch {
+      return nil
+    }
+  }
+
+  /// The casks a still-valid key was issued for.
+  static func casks(for key: String, now: Date = Date()) -> [String]? {
+    guard let entry = keys[key], entry.expires > now else { return nil }
+    return entry.casks
+  }
+
+  /// Upkeep's own password box. Nil when cancelled or unanswered for five minutes.
+  static func askPassword(for casks: [String]) -> String? {
+    let alert = NSAlert()
+    alert.messageText = "Homebrew needs your Mac password"
+    alert.informativeText =
+      "To update \(casks.joined(separator: ", ")). Upkeep passes it to Homebrew for this update only and never saves it."
+    alert.addButton(withTitle: "Continue")
+    alert.addButton(withTitle: "Cancel")
+    let field = NSSecureTextField(frame: NSRect(x: 0, y: 0, width: 260, height: 24))
+    field.placeholderString = "Password"
+    alert.accessoryView = field
+    alert.window.initialFirstResponder = field
+    NSApp.activate()
+    let timeout = Timer(timeInterval: 300, repeats: false) { _ in
+      MainActor.assumeIsolated { NSApp.abortModal() }
+    }
+    RunLoop.main.add(timeout, forMode: .modalPanel)
+    defer { timeout.invalidate() }
+    guard alert.runModal() == .alertFirstButtonReturn, !field.stringValue.isEmpty else {
+      return nil
+    }
+    return field.stringValue
   }
 }
 

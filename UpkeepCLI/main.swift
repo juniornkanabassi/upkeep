@@ -334,6 +334,18 @@ if first == "mcp-manifest" {
   manifest()
   exit(0)
 }
+// sudo's askpass hook (hidden, not an MCP tool): prints the password Upkeep asked for, with
+// the one-time key from Upkeep's askpass script. sudo ignores the prompt argument it passes.
+if first == "askpass" {
+  let key = argv.drop { $0 != "askpass" }.dropFirst().first ?? ""
+  let request = ControlRequest(command: "askpass", args: ["key": key], caller: "askpass")
+  guard
+    let response = try? ControlClient.send(request, to: ControlPaths.socket, timeout: 330),
+    response.ok, case .string(let password)? = response.data?["password"]
+  else { exit(1) }
+  FileHandle.standardOutput.write(Data((password + "\n").utf8))
+  exit(0)
+}
 guard let command = commands.first(where: { $0.name == first }) else {
   usage("Unknown command \(first).", nil)
 }

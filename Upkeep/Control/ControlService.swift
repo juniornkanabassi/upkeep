@@ -56,6 +56,15 @@ final class ControlService {
     case "uninstall_preview", "uninstall_confirm":
       return await uninstallRequest(request)
     case "history": return history(limit: Int(args["limit"] ?? "") ?? 20)
+    case "askpass":
+      // Only for brew runs Upkeep started (see Askpass); never cached or logged.
+      guard let casks = Askpass.casks(for: args["key"] ?? "") else {
+        return .failure("askpass_refused", "No Homebrew update is waiting for a password.")
+      }
+      guard let password = Askpass.askPassword(for: casks) else {
+        return .failure("cancelled", "The password request was cancelled.")
+      }
+      return ControlResponse(ok: true, data: ["password": .string(password)])
     default:
       return .failure(
         "unknown_command", "Unknown command \(request.command). Run `upkeep --help`.")

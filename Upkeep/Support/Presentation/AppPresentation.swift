@@ -174,7 +174,7 @@ extension App {
       }
       if externalUpdaterName == HomebrewCheckerOperation.handOffLabel {
         return RexTerminal.isAvailable
-          ? "Upkeep runs brew upgrade in a Rex tab in the agents session. If brew asks for your password, type it there."
+          ? "Upkeep runs brew upgrade in the background in Rex. If brew needs your Mac password, Upkeep asks for it here."
           : "Upkeep can't run this one itself. It copies the brew upgrade command and opens Terminal: paste it and press Return."
       }
       if externalUpdaterName == name {
