@@ -8,7 +8,9 @@ enum SidebarUpdateActionTitle {
     if app.relaunchesToUpdate {
       return (isRunning(app) ? "Relaunch " : "Open ") + app.name
     }
-    if app.externalUpdaterName == HomebrewCheckerOperation.handOffLabel { return "Open Terminal" }
+    if app.externalUpdaterName == HomebrewCheckerOperation.handOffLabel {
+      return RexTerminal.isAvailable ? "Update in Rex" : "Open Terminal"
+    }
     if let externalUpdater = app.externalUpdaterName {
       return String(
         format: NSLocalizedString(

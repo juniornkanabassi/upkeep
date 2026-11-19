@@ -73,6 +73,16 @@ final class UpdateCheckingService: NSObject, ObservableObject, UpdateCheckProgre
     Self.updateAllCandidates(
       from: coordinator.appProvider.updatableApps, isUpdating: updating.isUpdating,
       alwaysUsesManualAppStoreUpdates: appStoreUpdateService.alwaysUsesManualUpdates)
+      + rexUpgrades(from: coordinator.appProvider.updatableApps)
+  }
+
+  /// Brew upgrades that run in a Rex tab: one click for a person, so Update All includes
+  /// them, but never automation or automatic updates (brew may ask for a password).
+  func rexUpgrades(from apps: [App]) -> [App] {
+    guard ExternalHandOff.allowed else { return [] }
+    return apps.filter {
+      $0.updateAvailable && !$0.isIgnored && $0.upgradesInRex && !updating.isUpdating($0)
+    }
   }
 
   /// Update All runs only apps Upkeep installs itself (`install`/`vendorTool`); hand-offs
@@ -135,6 +145,7 @@ final class UpdateCheckingService: NSObject, ObservableObject, UpdateCheckProgre
     }
 
     apps.forEach { updating.update($0, isBulkUpdate: true) }
+    rexUpgrades(from: selection).forEach { updating.update($0) }
   }
 
   func updateCheckerDidStartScanningForApps(_ updateChecker: UpdateCheckCoordinator) {

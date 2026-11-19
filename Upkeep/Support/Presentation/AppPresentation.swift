@@ -123,7 +123,8 @@ extension App {
       }
       if availabilityUnknown { return "Opens \(externalUpdaterName ?? "its vendor's app")" }
       if externalUpdaterName == HomebrewCheckerOperation.handOffLabel {
-        return "Opens Terminal with the brew command"
+        return RexTerminal.isAvailable
+          ? "Runs brew in Rex" : "Opens Terminal with the brew command"
       }
       if externalUpdaterName == name { return "Updates from inside the app" }
       return "Opens \(externalUpdaterName ?? "another app")"
@@ -172,8 +173,9 @@ extension App {
           "\(externalUpdaterName ?? "The vendor") doesn't tell other apps whether an update is waiting. Open it to check and update there."
       }
       if externalUpdaterName == HomebrewCheckerOperation.handOffLabel {
-        return
-          "Upkeep can't run this one itself. It copies the brew upgrade command and opens Terminal: paste it and press Return."
+        return RexTerminal.isAvailable
+          ? "Upkeep runs brew upgrade in a Rex tab in the agents session. If brew asks for your password, type it there."
+          : "Upkeep can't run this one itself. It copies the brew upgrade command and opens Terminal: paste it and press Return."
       }
       if externalUpdaterName == name {
         return "\(name) updates itself. Open it and use its own update command."

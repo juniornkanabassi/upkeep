@@ -931,4 +931,17 @@ final class HomebrewTest: XCTestCase {
       Homebrew.installedTarget(of: nested, caskroom: room),
       Homebrew.canonical(explicit.appendingPathComponent("Fixture.app")), "explicit beats env")
   }
+
+  /// Hand-offs run in Rex's agents session: a new background tab when it exists, the
+  /// session itself otherwise, with every cask in one brew run.
+  func testRexHandOffRunsOneBrewUpgradeInTheAgentsSession() {
+    let brew = Homebrew.locate()?.path ?? "brew"
+    XCTAssertEqual(
+      RexTerminal.arguments(for: ["a", "b"], sessionExists: true),
+      ["window", "new", "-s", "agents", "brew upgrade", "--focus=false", "--keep-open", "--",
+       brew, "upgrade", "--cask", "a", "b"])
+    XCTAssertEqual(
+      RexTerminal.arguments(for: ["a"], sessionExists: false),
+      ["new", "agents", "--window", "brew a", "--keep-open", "--", brew, "upgrade", "--cask", "a"])
+  }
 }

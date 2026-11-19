@@ -107,7 +107,9 @@ struct AllAppsTable: View {
       return "\(app.name) installs its own updates, so Upkeep can't update it automatically."
     }
     if app.externalUpdaterName == HomebrewCheckerOperation.handOffLabel {
-      return "\(app.name)'s update comes as a Homebrew command you run in Terminal."
+      return RexTerminal.isAvailable
+        ? "\(app.name)'s update is a Homebrew command that may ask for your password, so it runs in Rex when you ask."
+        : "\(app.name)'s update comes as a Homebrew command you run in Terminal."
     }
     if let updater = app.externalUpdaterName {
       return "\(app.name) updates through \(updater), so Upkeep can't update it automatically."

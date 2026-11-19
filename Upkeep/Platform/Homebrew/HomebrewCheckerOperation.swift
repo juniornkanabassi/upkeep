@@ -49,12 +49,17 @@ final class HomebrewCheckerOperation: Sendable {
       }
     } else {
       // Anything outside the allow list (admin steps, scripts, several apps, hooks reaching
-      // other copies, :latest): the user runs brew in Terminal with the command copied.
-      let command = adminCommand(for: cask.token)
+      // other copies, :latest): brew runs in a Rex tab where the person can answer any
+      // password prompt, or without Rex the command is copied and Terminal opens.
+      let token = cask.token
       action = .external(label: handOffLabel) { _ in
         Task { @MainActor in
+          if RexTerminal.isAvailable {
+            RexTerminal.upgrade(token)
+            return
+          }
           NSPasteboard.general.clearContents()
-          NSPasteboard.general.setString(command, forType: .string)
+          NSPasteboard.general.setString(adminCommand(for: token), forType: .string)
           MacApplicationWorkspace.shared.openApplication(
             at: URL(fileURLWithPath: "/System/Applications/Utilities/Terminal.app"))
         }
@@ -66,8 +71,10 @@ final class HomebrewCheckerOperation: Sendable {
       updateAction: action)
   }
 
-  /// Shown as "Open Terminal (brew command copied)".
-  static let handOffLabel = "Terminal (brew command copied)"
+  /// Shown as "Open Terminal (brew command copied)", or "Rex" when brew runs there.
+  static var handOffLabel: String {
+    RexTerminal.isAvailable ? "Rex" : "Terminal (brew command copied)"
+  }
 
   static func adminCommand(for token: String) -> String { "brew upgrade --cask \(token)" }
 
@@ -143,5 +150,73 @@ final class HomebrewCheckerOperation: Sendable {
       releaseNotes: releaseNotes,
       updateAction: action
     )
+  }
+}
+
+/// Runs brew upgrades Upkeep cannot do itself in a background tab of Junior's Rex session
+/// `agents`, so no command has to be pasted. Upgrades asked for together share one tab and
+/// one brew run (one password prompt, no brew lock contention).
+@MainActor
+enum RexTerminal {
+  nonisolated static let session = "agents"
+  nonisolated static let executable: URL? = {
+    let home = FileManager.default.homeDirectoryForCurrentUser.path
+    return ["\(home)/.local/bin/rex", "/opt/homebrew/bin/rex", "/usr/local/bin/rex"]
+      .first { FileManager.default.isExecutableFile(atPath: $0) }
+      .map(URL.init(fileURLWithPath:))
+  }()
+  nonisolated static var isAvailable: Bool { executable != nil }
+
+  private static var pending: [String] = []
+
+  static func upgrade(_ token: String) {
+    if !pending.contains(token) { pending.append(token) }
+    guard pending.count == 1 else { return }
+    // Update All submits every app in one main-actor pass; collect them into one brew run.
+    DispatchQueue.main.async {
+      let tokens = pending
+      pending = []
+      run(tokens)
+    }
+  }
+
+  nonisolated static func arguments(for tokens: [String], sessionExists: Bool) -> [String] {
+    let label = tokens.count == 1 ? "brew \(tokens[0])" : "brew upgrade"
+    let brew = Homebrew.locate()?.path ?? "brew"
+    let command = ["--keep-open", "--", brew, "upgrade", "--cask"] + tokens
+    return sessionExists
+      ? ["window", "new", "-s", session, label, "--focus=false"] + command
+      : ["new", session, "--window", label] + command
+  }
+
+  private static func run(_ tokens: [String]) {
+    guard let executable, !tokens.isEmpty else { return }
+    Task.detached {
+      let list = (try? output(executable, ["ls", "--json"])) ?? ""
+      let exists = list.contains("\"label\": \"\(session)\"")
+      _ = try? output(executable, arguments(for: tokens, sessionExists: exists))
+    }
+  }
+
+  nonisolated private static func output(_ executable: URL, _ arguments: [String]) throws
+    -> String
+  {
+    let process = Process()
+    process.executableURL = executable
+    process.arguments = arguments
+    let pipe = Pipe()
+    process.standardOutput = pipe
+    process.standardError = FileHandle.nullDevice
+    try process.run()
+    let data = pipe.fileHandleForReading.readDataToEndOfFile()
+    process.waitUntilExit()
+    return String(decoding: data, as: UTF8.self)
+  }
+}
+
+extension App {
+  /// A brew upgrade Upkeep starts in Rex: one click, so Update All includes it.
+  var upgradesInRex: Bool {
+    RexTerminal.isAvailable && externalUpdaterName == HomebrewCheckerOperation.handOffLabel
   }
 }
